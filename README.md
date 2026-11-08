@@ -21,6 +21,10 @@ This adds a searchable text layer to a scanned PDF and extracts the resulting te
 | --- | --- |
 | ![Text extraction demo](media/extract.png) | ![OCR text layer](media/ocr.png) |
 
+| `hspdf render`: rasterize PDF pages to PNG/JPEG | `hspdf replace`: rewrite text in place |
+| --- | --- |
+| ![Page rendering](media/render.png) | ![Text replacement](media/replace.png) |
+
 ## Documentation
 
 The [project wiki](https://github.com/huzpsb/hspdf/wiki) contains about 60 pages of documentation, including CLI usage, Go API examples, and getting-started guides.

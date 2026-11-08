@@ -14,6 +14,10 @@ hspdf ocr scan.pdf scan_ocr.pdf && hspdf extract -m text scan_ocr.pdf -
 | --- | --- |
 | ![文本提取示例](media/extract.png) | ![OCR 文本层示例](media/ocr.png) |
 
+| `hspdf render`：将 PDF 页面渲染为 PNG/JPEG 图片 | `hspdf replace`：原位替换文本 |
+| --- | --- |
+| ![页面渲染示例](media/render.png) | ![文本替换示例](media/replace.png) |
+
 ## 文档
 
 [项目 Wiki](https://github.com/huzpsb/hspdf/wiki) 包含约 60 页文档，涵盖命令行用法、Go API 示例和入门指南。
