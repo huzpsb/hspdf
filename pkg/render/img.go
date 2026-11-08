@@ -36,6 +36,68 @@ type rasterImage struct {
 	w, h    int
 }
 
+// bufferBytes returns the approximate memory held by the decoded buffers.
+func (ri *rasterImage) bufferBytes() int64 {
+	if ri == nil {
+		return 0
+	}
+	n := int64(ri.w) * int64(ri.h)
+	total := n
+	if ri.img != nil {
+		total += n * 4
+	}
+	if ri.stencil != nil {
+		total += n
+	}
+	return total
+}
+
+// pixelsWithinLimit reports whether w*h stays within limit. A limit <= 0
+// disables the check; the division form avoids the int64 overflow of
+// w*h for extreme dimensions.
+func pixelsWithinLimit(w, h int64, limit int64) bool {
+	if limit <= 0 {
+		return true
+	}
+	if w <= 0 || h <= 0 {
+		return false
+	}
+	return w <= limit/h
+}
+
+// bufferBytesWithinLimit reports whether w*h*bytesPerPixel stays within limit.
+func bufferBytesWithinLimit(w, h, bytesPerPixel, limit int64) bool {
+	if limit <= 0 {
+		return true
+	}
+	if w <= 0 || h <= 0 || bytesPerPixel <= 0 {
+		return false
+	}
+	if w > limit/bytesPerPixel {
+		return false
+	}
+	return w*bytesPerPixel <= limit/h
+}
+
+// decodedRowBytes returns the byte length of one decoded image row and
+// whether that length is representable (saturating arithmetic).
+func decodedRowBytes(w, n, bpc int) (int64, bool) {
+	if w < 0 || n < 0 || bpc < 0 {
+		return 0, false
+	}
+	bits := int64(1)
+	for _, v := range []int64{int64(w), int64(n), int64(bpc)} {
+		if v > math.MaxInt64/bits {
+			return 0, false
+		}
+		bits *= v
+	}
+	if bits > (math.MaxInt64-7)/8 {
+		return 0, false
+	}
+	return (bits + 7) / 8, true
+}
+
 // lastFilterName returns the name of the last filter in the pipeline.
 func lastFilterName(sd *types.StreamDict) string {
 	if sd.FilterPipeline == nil || len(sd.FilterPipeline) == 0 {
@@ -59,8 +121,11 @@ func (d *device) decodeImage(sd *types.StreamDict, csObj types.Object) (*rasterI
 		return nil, errors.New("image: missing dimensions")
 	}
 	w, h := wv.Value(), hv.Value()
-	if w <= 0 || h <= 0 || int64(w)*int64(h) > d.maxImagePixels() {
+	if w <= 0 || h <= 0 {
 		return nil, fmt.Errorf("image: invalid dimensions %dx%d", w, h)
+	}
+	if limit := d.maxImagePixels(); !pixelsWithinLimit(int64(w), int64(h), limit) {
+		return nil, fmt.Errorf("image: %dx%d pixels exceeds limit of %d", w, h, limit)
 	}
 
 	imgMask := false
@@ -73,6 +138,9 @@ func (d *device) decodeImage(sd *types.StreamDict, csObj types.Object) (*rasterI
 		bpc = v.Value()
 	} else {
 		bpc = 1 // image masks default to 1
+	}
+	if bpc != 1 && bpc != 2 && bpc != 4 && bpc != 8 && bpc != 16 {
+		return nil, fmt.Errorf("image: invalid BitsPerComponent %d", bpc)
 	}
 
 	// Decode the raw data according to the filter pipeline.
@@ -105,6 +173,9 @@ func (d *device) decodeImage(sd *types.StreamDict, csObj types.Object) (*rasterI
 		} else {
 			ri.img = toNRGBA(im)
 		}
+		if limit := d.maxImageBytes(); !bufferBytesWithinLimit(int64(w), int64(h), 4, limit) {
+			return nil, fmt.Errorf("image: %dx%d exceeds %d byte buffer limit", w, h, limit)
+		}
 		if imgMask {
 			ri.stencil = alphaFromNRGBA(ri.img)
 			ri.img = nil
@@ -131,6 +202,23 @@ func (d *device) decodeImage(sd *types.StreamDict, csObj types.Object) (*rasterI
 		cs = csGray
 	}
 	decode := d.decodeArray(sd.Dict["Decode"], cs.n, imgMask)
+
+	// The decoded row size implied by the declared dimensions must stay
+	// within the image byte limit: corrupt entries (huge /ColorSpace
+	// component counts combined with /Width) would otherwise overflow the
+	// row arithmetic or allocate unbounded buffers. The raw data footprint
+	// is rowBytes*h, the output buffers are bounded by the pixel limit.
+	n := 1
+	if cs != nil {
+		n = cs.n
+	}
+	rowBytes, ok := decodedRowBytes(w, n, bpc)
+	if !ok {
+		return nil, fmt.Errorf("image: %dx%d bpc=%d n=%d exceeds size limits", w, h, bpc, n)
+	}
+	if limit := d.maxImageBytes(); limit > 0 && rowBytes > limit/int64(h) {
+		return nil, fmt.Errorf("image: %dx%d bpc=%d n=%d exceeds %d byte data limit", w, h, bpc, n, limit)
+	}
 
 	if imgMask {
 		ri.stencil = decodeStencil(data, w, h, bpc, decode)
@@ -216,13 +304,26 @@ func (d *device) decodeArray(o types.Object, n int, imgMask bool) [][2]float64 {
 // decodeRaster converts raw samples into an NRGBA image.
 func decodeRaster(data []byte, w, h, bpc int, cs *colorSpace, decode [][2]float64) *image.NRGBA {
 	n := cs.n
-	rowBits := w * n * bpc
-	rowBytes := (rowBits + 7) / 8
+	rowBytes, ok := decodedRowBytes(w, n, bpc)
+	if !ok {
+		return nil
+	}
+	if int64(h) > int64(len(data))/rowBytes {
+		// Truncated stream: only decode (and allocate) the rows present.
+		h = int(int64(len(data)) / rowBytes)
+		if h <= 0 {
+			return nil
+		}
+	}
 	img := image.NewNRGBA(image.Rect(0, 0, w, h))
 	comps := make([]float64, n)
 	maxV := float64(uint64(1)<<uint(bpc) - 1)
 	for y := 0; y < h; y++ {
-		row := data[y*rowBytes:]
+		off := int(int64(y) * rowBytes)
+		if int64(off)+rowBytes > int64(len(data)) {
+			break // truncated stream: stop at the last complete row
+		}
+		row := data[off:]
 		for x := 0; x < w; x++ {
 			ok := true
 			for c := 0; c < n; c++ {
@@ -267,8 +368,17 @@ func sampleBitsAt(b []byte, bitOff, bpc int) (float64, bool) {
 // decodeStencil converts a 1 bit image mask into an alpha stencil where a
 // sample of 1 means "masked out" (transparent).
 func decodeStencil(data []byte, w, h, bpc int, decode [][2]float64) *image.Alpha {
-	m := image.NewAlpha(image.Rect(0, 0, w, h))
 	rowBytes := (w*bpc + 7) / 8
+	if rowBytes > 0 {
+		if rows := int64(len(data)) / int64(rowBytes); int64(h) > rows {
+			// Truncated stream: only allocate the rows present.
+			h = int(rows)
+		}
+	}
+	if h <= 0 {
+		return nil
+	}
+	m := image.NewAlpha(image.Rect(0, 0, w, h))
 	inv := len(decode) > 0 && decode[0][0] == 1
 	for y := 0; y < h; y++ {
 		row := data[y*rowBytes:]
@@ -366,10 +476,29 @@ func (d *device) loadXObjectImage(objNr int, sd *types.StreamDict) (*rasterImage
 			}
 		}
 	}
-	if len(d.images) < 512 {
+	if size := ri.bufferBytes(); len(d.images) < 512 && d.imgBytes+size <= d.maxImageBytes() {
 		d.images[objNr] = ri
+		d.imgBytes += size
 	}
 	return ri, nil
+}
+
+// drawImagePlaceholder marks the unit square transformed by m as an image
+// the renderer could not decode (JBIG2, JPEG2000).
+func (d *device) drawImagePlaceholder(m mat) {
+	rect := subPath{pts: []pt{{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0}}}
+	sps := transformPath([]subPath{rect}, m)
+	d.cv.fill(sps, false, rgba{168, 168, 176, 40}, 1, d.gs.clip)
+	savedStroke := d.gs.strokeComps
+	savedCS := d.gs.strokeCS
+	savedAlpha := d.gs.strokeAlpha
+	d.gs.strokeCS = csGray
+	d.gs.strokeComps = []float64{0.62}
+	d.gs.strokeAlpha = 1
+	d.strokeDevice(sps, 1, 1)
+	d.gs.strokeComps = savedStroke
+	d.gs.strokeCS = savedCS
+	d.gs.strokeAlpha = savedAlpha
 }
 
 // drawImage draws ri transformed by m (unit square -> device space).

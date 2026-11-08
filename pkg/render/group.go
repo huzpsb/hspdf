@@ -85,7 +85,14 @@ func (d *device) renderFormToCanvas(sd *types.StreamDict, parentCTM mat, clip *i
 	savedStack := d.stack
 	savedResStack := d.resStack
 
-	tmp := newCanvas(savedCV.w, savedCV.h)
+	tmp, ok := d.acquireGroupCanvas(savedCV.w, savedCV.h)
+	if !ok {
+		// Auxiliary canvas budget exhausted (deeply nested groups): the
+		// caller falls back to direct rendering into the parent canvas.
+		return nil
+	}
+	defer d.releaseGroupCanvas(tmp)
+	tmp.cancel = savedCV.cancel
 	d.cv = tmp
 	d.gs = newGState()
 	d.stack = nil

@@ -47,7 +47,7 @@ func Run() {
 
 	obj := js.ValueOf(map[string]any{})
 	reg := func(name string, fn func(args []js.Value) any) {
-		obj.Set(name, js.FuncOf(func(_ js.Value, args []js.Value) any { return fn(args) }))
+		obj.Set(name, js.FuncOf(func(_ js.Value, args []js.Value) any { return safeCall(fn, args) }))
 	}
 
 	// one PDF in, params, one result out
@@ -286,6 +286,18 @@ func Version() string {
 }
 
 // ---- result wrapping ----
+
+// safeCall runs one bridge function, converting any panic into an error
+// result. Runtime panics escaping from malformed PDFs would otherwise tear
+// down the whole wasm worker.
+func safeCall(fn func(args []js.Value) any, args []js.Value) (result any) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = map[string]any{"ok": false, "error": fmt.Sprintf("internal error: %v", r)}
+		}
+	}()
+	return fn(args)
+}
 
 func finish(r *Result, err error) any {
 	if err != nil {

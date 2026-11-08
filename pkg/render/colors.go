@@ -121,9 +121,15 @@ func (d *device) parseColorSpace(o types.Object) (*colorSpace, error) {
 		}
 		switch fam.Value() {
 		case "CalGray", "Cal":
+			if len(o) < 2 {
+				return nil, errors.New("cal gray color space: corrupt")
+			}
 			cal := d.parseCalParams(o[1], true)
 			return &colorSpace{family: csCalGray, n: 1, cal: cal}, nil
 		case "CalRGB", "CalR":
+			if len(o) < 2 {
+				return nil, errors.New("cal rgb color space: corrupt")
+			}
 			cal := d.parseCalParams(o[1], false)
 			return &colorSpace{family: csCalRGB, n: 3, cal: cal}, nil
 		case "Lab":
@@ -138,6 +144,9 @@ func (d *device) parseColorSpace(o types.Object) (*colorSpace, error) {
 			}
 			return &colorSpace{family: csPattern, n: 1}, nil
 		case "ICCBased", "ICCB":
+			if len(o) < 2 {
+				return nil, errors.New("icc based color space: corrupt")
+			}
 			sd, _, err := xrt.DereferenceStreamDict(o[1])
 			if err != nil {
 				return nil, err
@@ -168,6 +177,11 @@ func (d *device) parseColorSpace(o types.Object) (*colorSpace, error) {
 			hv, err := xrt.DereferenceNumber(o[2])
 			if err != nil {
 				return nil, err
+			}
+			// hival indexes the lookup table and must cover the PDF range
+			// 0..255; out of range values corrupt the index arithmetic.
+			if hv < 0 || hv > 255 {
+				return nil, fmt.Errorf("indexed color space: hival %g out of range", hv)
 			}
 			lookup, err := d.colorLookupTable(o[3])
 			if err != nil {
@@ -437,20 +451,45 @@ type pdfFunction struct {
 	prog           []string // type 4 tokens
 }
 
+// maxFunctionDepth bounds the nesting of (stitching) functions and
+// maxSampledFunctionInputs bounds the input dimension of a sampled function:
+// its multilinear interpolation touches 2^nIn sample corners per evaluation.
+const (
+	maxFunctionDepth         = 16
+	maxSampledFunctionInputs = 8
+)
+
 // parseFunction resolves o into a pdfFunction.
 func (d *device) parseFunction(o types.Object) (*pdfFunction, error) {
+	return d.parseFunctionDepth(o, 0)
+}
+
+func (d *device) parseFunctionDepth(o types.Object, depth int) (*pdfFunction, error) {
+	if depth > maxFunctionDepth {
+		return nil, errors.New("function: nesting too deep")
+	}
 	xrt := d.ctx.XRefTable
 	switch o := o.(type) {
 	case types.IndirectRef:
+		objNr := o.ObjectNumber.Value()
+		if d.fnActive[objNr] {
+			return nil, errors.New("function: circular reference")
+		}
 		obj, err := xrt.Dereference(o)
 		if err != nil {
 			return nil, err
 		}
-		return d.parseFunction(obj)
+		if d.fnActive == nil {
+			d.fnActive = map[int]bool{}
+		}
+		d.fnActive[objNr] = true
+		fn, err := d.parseFunctionDepth(obj, depth+1)
+		delete(d.fnActive, objNr)
+		return fn, err
 	case types.Dict:
-		return d.functionFromDict(o)
+		return d.functionFromDict(o, depth)
 	case types.StreamDict:
-		fn, err := d.functionFromDict(o.Dict)
+		fn, err := d.functionFromDict(o.Dict, depth)
 		if err != nil {
 			return nil, err
 		}
@@ -473,7 +512,7 @@ func (d *device) parseFunction(o types.Object) (*pdfFunction, error) {
 	return nil, errors.New("function must be dict or stream")
 }
 
-func (d *device) functionFromDict(d1 types.Dict) (*pdfFunction, error) {
+func (d *device) functionFromDict(d1 types.Dict, depth int) (*pdfFunction, error) {
 	xrt := d.ctx.XRefTable
 	fn := &pdfFunction{}
 	tv, _, err := xrt.DereferenceIntegerEntry(d1, "FunctionType")
@@ -498,6 +537,9 @@ func (d *device) functionFromDict(d1 types.Dict) (*pdfFunction, error) {
 					fn.size = append(fn.size, iv.Value())
 				}
 			}
+		}
+		if len(fn.size) > maxSampledFunctionInputs {
+			return nil, fmt.Errorf("sampled function: %d input dimensions exceeds limit %d", len(fn.size), maxSampledFunctionInputs)
 		}
 		if bps, _, err := xrt.DereferenceIntegerEntry(d1, "BitsPerSample"); err == nil && bps != nil {
 			fn.bps = bps.Value()
@@ -531,7 +573,7 @@ func (d *device) functionFromDict(d1 types.Dict) (*pdfFunction, error) {
 	case 3:
 		if a, err := xrt.DereferenceArray(d1["Functions"]); err == nil {
 			for _, oo := range a {
-				sub, err := d.parseFunction(oo)
+				sub, err := d.parseFunctionDepth(oo, depth+1)
 				if err != nil {
 					return nil, err
 				}
@@ -684,6 +726,9 @@ func evalSampled(fn *pdfFunction, in []float64) ([]float64, error) {
 		return nil, errors.New("sampled function: corrupt")
 	}
 	nIn := len(fn.size)
+	if nIn > maxSampledFunctionInputs {
+		return nil, fmt.Errorf("sampled function: %d input dimensions exceeds limit %d", nIn, maxSampledFunctionInputs)
+	}
 	nOut := len(fn.rng)
 	if nOut == 0 {
 		return nil, errors.New("sampled function: missing Range")

@@ -150,28 +150,39 @@ func (tf *ttfFont) glyphRange(gid int) (int, int, bool) {
 // glyphID resolves a rune through the cmap (best effort).
 func (tf *ttfFont) glyphID(r rune) int {
 	if tf.cmap.format == 4 {
-		c := uint16(r)
-		if r > 0xFFFF {
+		if r > 0xFFFF || tf.cmap.segCount == 0 {
 			return 0
 		}
-		for i := 0; i < tf.cmap.segCount; i++ {
-			if c <= tf.cmap.endCodes[i] {
-				if c < tf.cmap.starts[i] {
-					return 0
-				}
-				if tf.cmap.rangeOffs[i] == 0 {
-					return int(int32(c) + int32(tf.cmap.deltas[i])) & 0xFFFF
-				}
-				// Range offset addressing.
-				idx := int(tf.cmap.rangeOffs[i])/2 + int(c-tf.cmap.starts[i]) - tf.cmap.segCount + i
-				if idx*2+1 < len(tf.cmap.glyphIds) {
-					g := int(binary.BigEndian.Uint16(tf.cmap.glyphIds[idx*2:]))
-					if g != 0 {
-						return g
-					}
-				}
+		c := uint16(r)
+		// endCodes are sorted ascending: binary search the first segment
+		// with endCode >= c (the previous linear scan was O(segCount) per
+		// rune and multiplied up in the reverse cmap build).
+		lo, hi := 0, tf.cmap.segCount-1
+		for lo < hi {
+			mid := int(uint(lo+hi) >> 1)
+			if tf.cmap.endCodes[mid] < c {
+				lo = mid + 1
+			} else {
+				hi = mid
+			}
+		}
+		i := lo
+		if c <= tf.cmap.endCodes[i] {
+			if c < tf.cmap.starts[i] {
 				return 0
 			}
+			if tf.cmap.rangeOffs[i] == 0 {
+				return int(int32(c) + int32(tf.cmap.deltas[i])) & 0xFFFF
+			}
+			// Range offset addressing.
+			idx := int(tf.cmap.rangeOffs[i])/2 + int(c-tf.cmap.starts[i]) - tf.cmap.segCount + i
+			if idx*2+1 < len(tf.cmap.glyphIds) {
+				g := int(binary.BigEndian.Uint16(tf.cmap.glyphIds[idx*2:]))
+				if g != 0 {
+					return g
+				}
+			}
+			return 0
 		}
 		return 0
 	}
@@ -283,7 +294,14 @@ func parseCmapSubtable(b []byte, format int) (cmapSubtable, bool) {
 }
 
 // ttfGlyphOutline returns the outline of gid in font units, y axis down.
-func ttfGlyphOutline(tf *ttfFont, gid int, depth int) []subPath {
+func ttfGlyphOutline(tf *ttfFont, gid int, depth int) (sps []subPath) {
+	// A corrupt font program must degrade to an empty glyph, not take down
+	// the renderer (mirrors cffGlyphOutline).
+	defer func() {
+		if r := recover(); r != nil {
+			sps = nil
+		}
+	}()
 	start, end, ok := tf.glyphRange(gid)
 	if !ok || depth > 8 {
 		return nil
@@ -380,8 +398,16 @@ func simpleGlyphOutline(g []byte, nContours int) []subPath {
 		return nil
 	}
 	ends := make([]int, nContours)
+	prev := -1
 	for i := 0; i < nContours; i++ {
-		ends[i] = int(binary.BigEndian.Uint16(g[p+i*2:]))
+		e := int(binary.BigEndian.Uint16(g[p+i*2:]))
+		if e < prev {
+			// endPtsOfContours must be non decreasing; a smaller value would
+			// index past the point arrays derived from the final entry.
+			return nil
+		}
+		prev = e
+		ends[i] = e
 	}
 	p += nContours * 2
 	nPoints := 0

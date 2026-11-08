@@ -122,7 +122,42 @@ type device struct {
 	objActive map[int]bool
 	cancel    context.Context
 	recent    []string
+
+	// pathPoints counts the flattened points of the path under
+	// construction; pathLimitWarned suppresses repeat warnings.
+	pathPoints      int
+	pathLimitWarned bool
+
+	// imgBytes is the cumulative buffer size of the cached decoded images.
+	imgBytes int64
+
+	// groupDepth/groupBytes bound concurrently active auxiliary canvases
+	// (transparency groups, soft masks) so nested groups cannot multiply
+	// page sized allocations. pageW/pageH is the page canvas size.
+	groupDepth int
+	groupBytes int64
+	pageW      int
+	pageH      int
+
+	// fnActive tracks function objects currently being parsed (cycle guard).
+	fnActive map[int]bool
+
+	// placeholderImages draws faint boxes for undecodable images;
+	// unsupportedImages counts the images skipped with errUnsupported.
+	placeholderImages bool
+	unsupportedImages int
 }
+
+// Resource bounds guarding the interpreter against malformed content.
+const (
+	// maxPathPoints bounds the flattened points of the path under
+	// construction. The counter is reset at every path painting operator,
+	// so only a single huge path construction is truncated.
+	maxPathPoints = 20000
+
+	// maxGroupDepth bounds the nesting of auxiliary canvases.
+	maxGroupDepth = 4
+)
 
 func newDevice(c context.Context, ctx *model.Context, cv *canvas, base mat) *device {
 	return &device{
@@ -135,7 +170,14 @@ func newDevice(c context.Context, ctx *model.Context, cv *canvas, base mat) *dev
 		images:    map[int]*rasterImage{},
 		objActive: map[int]bool{},
 		cancel:    c,
+		pageW:     cv.w,
+		pageH:     cv.h,
 	}
+}
+
+// cancelled reports whether the render context has been cancelled.
+func (d *device) cancelled() bool {
+	return d.cancel != nil && d.cancel.Err() != nil
 }
 
 func (d *device) warn(format string, args ...any) {
@@ -158,6 +200,69 @@ func (d *device) maxImagePixels() int64 {
 		return d.ctx.Configuration.Limits.MaxImagePixels
 	}
 	return model.DefaultResourceLimits().MaxImagePixels
+}
+
+// maxImageBytes bounds the buffer size of a single decoded image and the
+// cumulative size of the image cache. limit <= 0 falls back to the default.
+func (d *device) maxImageBytes() int64 {
+	if d.ctx != nil && d.ctx.Configuration != nil && d.ctx.Configuration.Limits.MaxImageBytes > 0 {
+		return d.ctx.Configuration.Limits.MaxImageBytes
+	}
+	return model.DefaultResourceLimits().MaxImageBytes
+}
+
+// pathBudget reports whether n more path points fit under maxPathPoints.
+func (d *device) pathBudget(n int) bool {
+	if d.pathPoints+n <= maxPathPoints {
+		return true
+	}
+	d.warnPathLimit()
+	return false
+}
+
+func (d *device) warnPathLimit() {
+	if !d.pathLimitWarned {
+		d.pathLimitWarned = true
+		d.warn("path: more than %d points, remainder of the path dropped", maxPathPoints)
+	}
+}
+
+// acquireGroupCanvas allocates an isolated canvas for a transparency group
+// or soft mask if the nesting depth and memory budget allow it.
+func (d *device) acquireGroupCanvas(w, h int) (*canvas, bool) {
+	// RGBA image plus one float32 of coverage per pixel.
+	need := int64(w) * int64(h) * 8
+	if d.groupDepth >= maxGroupDepth || need > d.auxCanvasBytes()-d.groupBytes {
+		return nil, false
+	}
+	d.groupDepth++
+	d.groupBytes += need
+	return newCanvas(w, h), true
+}
+
+// releaseGroupCanvas returns the budget charged by acquireGroupCanvas.
+func (d *device) releaseGroupCanvas(cv *canvas) {
+	if cv == nil {
+		return
+	}
+	d.groupBytes -= int64(cv.w) * int64(cv.h) * 8
+	d.groupDepth--
+	if d.groupBytes < 0 {
+		d.groupBytes = 0
+	}
+	if d.groupDepth < 0 {
+		d.groupDepth = 0
+	}
+}
+
+// auxCanvasBytes returns the memory budget for concurrently active
+// auxiliary canvases: two page sized buffers (RGBA + coverage each).
+func (d *device) auxCanvasBytes() int64 {
+	b := int64(d.pageW) * int64(d.pageH) * 8 * 2
+	if b <= 0 {
+		b = 1 << 30
+	}
+	return b
 }
 
 // checkCancelled polls the context.
@@ -313,35 +418,49 @@ func (d *device) applyOperator(op string, ops []token) error {
 
 	// Path construction.
 	case "m":
+		if !d.pathBudget(1) {
+			break
+		}
 		d.flushSubPath()
 		d.curPath = append(d.curPath, pt{num(ops, 0), num(ops, 1)})
+		d.pathPoints++
 	case "l":
+		if !d.pathBudget(1) {
+			break
+		}
 		if len(d.curPath) == 0 {
 			d.curPath = append(d.curPath, pt{num(ops, 0), num(ops, 1)})
 		} else {
 			d.curPath = append(d.curPath, pt{num(ops, 0), num(ops, 1)})
 		}
+		d.pathPoints++
 	case "c":
-		if len(d.curPath) > 0 {
+		if len(d.curPath) > 0 && d.pathBudget(flattenCubicMaxSegments) {
 			p0 := d.curPath[len(d.curPath)-1]
 			c1 := pt{num(ops, 0), num(ops, 1)}
 			c2 := pt{num(ops, 2), num(ops, 3)}
 			p3 := pt{num(ops, 4), num(ops, 5)}
+			before := len(d.curPath)
 			d.curPath = flattenCubic(d.curPath, p0, c1, c2, p3, d.pathTolerance())
+			d.pathPoints += len(d.curPath) - before
 		}
 	case "v":
-		if len(d.curPath) > 0 {
+		if len(d.curPath) > 0 && d.pathBudget(flattenQuadMaxSegments) {
 			p0 := d.curPath[len(d.curPath)-1]
 			c2 := pt{num(ops, 0), num(ops, 1)}
 			p3 := pt{num(ops, 2), num(ops, 3)}
+			before := len(d.curPath)
 			d.curPath = flattenQuad(d.curPath, p0, c2, p3, d.pathTolerance())
+			d.pathPoints += len(d.curPath) - before
 		}
 	case "y":
-		if len(d.curPath) > 0 {
+		if len(d.curPath) > 0 && d.pathBudget(flattenQuadMaxSegments) {
 			p0 := d.curPath[len(d.curPath)-1]
 			c1 := pt{num(ops, 0), num(ops, 1)}
 			p3 := pt{num(ops, 2), num(ops, 3)}
+			before := len(d.curPath)
 			d.curPath = flattenQuad(d.curPath, p0, c1, p3, d.pathTolerance())
+			d.pathPoints += len(d.curPath) - before
 		}
 	case "h":
 		if len(d.curPath) > 0 {
@@ -351,12 +470,13 @@ func (d *device) applyOperator(op string, ops []token) error {
 			d.curPath = nil
 		}
 	case "re":
-		if len(ops) >= 4 {
+		if len(ops) >= 4 && d.pathBudget(5) {
 			x, y, w, h := num(ops, 0), num(ops, 1), num(ops, 2), num(ops, 3)
 			d.flushSubPath()
 			d.subPaths = append(d.subPaths, subPath{pts: []pt{
 				{x, y}, {x + w, y}, {x + w, y + h}, {x, y + h}, {x, y},
 			}})
+			d.pathPoints += 5
 		}
 
 	// Path painting.
@@ -539,6 +659,7 @@ func (d *device) devicePath() []subPath {
 	sps := d.subPaths
 	d.subPaths = nil
 	d.curPath = nil
+	d.pathPoints = 0
 	return transformPath(sps, d.base.mul(d.gs.ctm))
 }
 
@@ -769,6 +890,12 @@ func (d *device) doXObject(name string) error {
 		if err != nil {
 			if errors.Is(err, errUnsupported) {
 				d.warn("image %s: %v", name, err)
+				d.unsupportedImages++
+				if d.placeholderImages {
+					// Mark the area of the undecodable image so the gap is
+					// visible instead of silently blank.
+					d.drawImagePlaceholder(d.base.mul(d.gs.ctm))
+				}
 				return nil
 			}
 			return fmt.Errorf("image %s: %w", name, err)
@@ -800,9 +927,12 @@ func (d *device) doForm(objNr int, sd *types.StreamDict) error {
 			groupAlpha := d.gs.fillAlpha
 			clip := d.gs.clip
 			parentCTM := d.gs.ctm
-			tmp := d.renderFormToCanvas(sd, parentCTM, clip)
-			d.compositeCanvas(tmp, groupAlpha, clip)
-			return nil
+			if tmp := d.renderFormToCanvas(sd, parentCTM, clip); tmp != nil {
+				d.compositeCanvas(tmp, groupAlpha, clip)
+				return nil
+			}
+			// Auxiliary canvas budget exhausted: continue below with direct
+			// (non isolated) rendering into the current canvas.
 		}
 	}
 
@@ -921,6 +1051,10 @@ func (d *device) doInlineImage(ops []token) {
 	filterName := expandFilterName(getName("F", "Filter"))
 	if filterName == "JPXDecode" || filterName == "JBIG2Decode" {
 		d.warn("inline image: filter %s unsupported", filterName)
+		d.unsupportedImages++
+		if d.placeholderImages {
+			d.drawImagePlaceholder(d.base.mul(d.gs.ctm))
+		}
 		return
 	}
 
@@ -942,6 +1076,12 @@ func (d *device) doInlineImage(ops []token) {
 	ri, err := d.decodeImage(sd, csObj)
 	if err != nil {
 		d.warn("inline image: %v", err)
+		if errors.Is(err, errUnsupported) {
+			d.unsupportedImages++
+			if d.placeholderImages {
+				d.drawImagePlaceholder(d.base.mul(d.gs.ctm))
+			}
+		}
 		return
 	}
 	d.drawImage(ri, d.base.mul(d.gs.ctm), d.gs.fillAlpha, d.gs.fillColor())

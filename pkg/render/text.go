@@ -60,6 +60,16 @@ type type0Info struct {
 	toUnicode *toUnicodeCMap
 }
 
+// CID width table bounds. The /W array of a corrupt font may declare ranges
+// spanning the full 32 bit code space: a uint32 loop counter would wrap
+// around and never terminate, and even without the wrap such a range means
+// billions of map inserts. Bound both the span of a single range and the
+// total number of expanded entries.
+const (
+	maxCIDWidthSpan    = 65535
+	maxCIDWidthEntries = 1 << 20
+)
+
 // type3Info holds the properties of a Type3 font.
 type type3Info struct {
 	charProcs   map[string]types.Object
@@ -284,6 +294,7 @@ func (d *device) loadType0Font(f *pdfFont, fd types.Dict) error {
 			if err != nil {
 				break
 			}
+			ci := int64(c)
 			if i+1 < len(wa) {
 				if a, err := d.ctx.DereferenceArray(wa[i+1]); err == nil && len(a) > 0 {
 					// c [w1 w2 ...]
@@ -292,7 +303,9 @@ func (d *device) loadType0Font(f *pdfFont, fd types.Dict) error {
 						if err != nil {
 							continue
 						}
-						info.w[uint32(c)+uint32(j)] = w
+						if k := ci + int64(j); ci >= 0 && k >= 0 && k <= 0xFFFFFFFF && len(info.w) < maxCIDWidthEntries {
+							info.w[uint32(k)] = w
+						}
 					}
 					i += 2
 					continue
@@ -302,8 +315,11 @@ func (d *device) loadType0Font(f *pdfFont, fd types.Dict) error {
 				c2, err2 := d.ctx.DereferenceNumber(wa[i+1])
 				w, err3 := d.ctx.DereferenceNumber(wa[i+2])
 				if err2 == nil && err3 == nil {
-					for k := uint32(c); k <= uint32(c2); k++ {
-						info.w[k] = w
+					hi := int64(c2)
+					if ci >= 0 && hi >= ci && hi-ci <= maxCIDWidthSpan && len(info.w)+int(hi-ci+1) <= maxCIDWidthEntries {
+						for k := ci; k <= hi; k++ {
+							info.w[uint32(k)] = w
+						}
 					}
 				}
 				i += 3

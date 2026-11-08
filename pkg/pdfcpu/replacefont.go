@@ -536,6 +536,11 @@ func parseCmap(data []byte, out map[rune]uint16) error {
 	return fmt.Errorf("no usable unicode cmap subtable")
 }
 
+// maxCmapMappings bounds the rune -> gid entries derived from an embedded
+// cmap subtable: overlapping format 12 groups (or many wide format 4
+// segments) could otherwise force billions of iterations.
+const maxCmapMappings = 1 << 20
+
 // parseCmapSubtable parses cmap formats 0, 4, 6 and 12.
 func parseCmapSubtable(data []byte, out map[rune]uint16) error {
 	if len(data) < 4 {
@@ -566,7 +571,11 @@ func parseCmapSubtable(data []byte, out map[rune]uint16) error {
 		startOff := endOff + 2*segCount + 2 // endCode + reservedPad
 		deltaOff := startOff + 2*segCount
 		rangeOff := deltaOff + 2*segCount
+		total := 0
 		for s := 0; s < segCount; s++ {
+			if total >= maxCmapMappings {
+				break
+			}
 			end := int(binary.BigEndian.Uint16(data[endOff+2*s:]))
 			start := int(binary.BigEndian.Uint16(data[startOff+2*s:]))
 			delta := int(int16(binary.BigEndian.Uint16(data[deltaOff+2*s:])))
@@ -575,6 +584,10 @@ func parseCmapSubtable(data []byte, out map[rune]uint16) error {
 				continue
 			}
 			for c := start; c <= end && c != 0xFFFF; c++ {
+				if total >= maxCmapMappings {
+					break
+				}
+				total++
 				var gid int
 				if ro == 0 {
 					gid = c + delta
@@ -620,7 +633,11 @@ func parseCmapSubtable(data []byte, out map[rune]uint16) error {
 		if len(data) < 16+12*nGroups {
 			return fmt.Errorf("truncated cmap format 12 groups")
 		}
+		total := 0
 		for g := 0; g < nGroups; g++ {
+			if total >= maxCmapMappings {
+				break
+			}
 			e := data[16+12*g:]
 			start := binary.BigEndian.Uint32(e[0:])
 			end := binary.BigEndian.Uint32(e[4:])
@@ -629,6 +646,10 @@ func parseCmapSubtable(data []byte, out map[rune]uint16) error {
 				continue
 			}
 			for c := start; c <= end; c++ {
+				if total >= maxCmapMappings {
+					break
+				}
+				total++
 				out[rune(c)] = uint16(startGid + (c - start))
 			}
 		}

@@ -41,6 +41,10 @@ type Options struct {
 	// MaxPixels caps the resulting pixel count per page (0: use the
 	// context resource limits).
 	MaxPixels int64
+	// PlaceholderImages draws a faint gray box in place of images the
+	// renderer cannot decode (JBIG2, JPEG2000). Off by default: solidify
+	// callers must not bake placeholders into documents.
+	PlaceholderImages bool
 }
 
 func (o *Options) ensureDefaults() {
@@ -80,6 +84,10 @@ type Result struct {
 
 // ErrNoContent is reported when a page has no content stream.
 var ErrNoContent = errors.New("page: no content")
+
+// absMaxCanvasPixels is a hard ceiling for page raster allocations that
+// applies even when the configured pixel limit is disabled.
+const absMaxCanvasPixels = 1 << 27
 
 // Page rasterizes a single page of ctx and supports cancellation.
 func Page(c context.Context, ctx *model.Context, pageNr int, o *Options) (*Result, error) {
@@ -128,7 +136,9 @@ func Page(c context.Context, ctx *model.Context, pageNr int, o *Options) (*Resul
 			maxPixels = ctx.Configuration.Limits.MaxImagePixels
 		}
 	}
-	if int64(w)*int64(h) > maxPixels {
+	// Overflow safe pixel check: int64(w)*int64(h) wraps for extreme
+	// MediaBox/UserUnit values and would pass a naive product comparison.
+	if !pixelsWithinLimit(int64(w), int64(h), maxPixels) || !pixelsWithinLimit(int64(w), int64(h), absMaxCanvasPixels) {
 		return nil, fmt.Errorf("render page %d: %dx%d pixels exceeds limit of %d (lower the DPI)", pageNr, w, h, maxPixels)
 	}
 
@@ -162,6 +172,9 @@ func Page(c context.Context, ctx *model.Context, pageNr int, o *Options) (*Resul
 	}
 
 	dev := newDevice(c, ctx, cv, base)
+	dev.placeholderImages = o.PlaceholderImages
+	// Propagate cancellation into long running rasterization loops.
+	cv.cancel = func() bool { return c.Err() != nil }
 	if rd, ok := res.(types.Dict); ok {
 		dev.res = rd
 	}
@@ -177,6 +190,14 @@ func Page(c context.Context, ctx *model.Context, pageNr int, o *Options) (*Resul
 		return nil, fmt.Errorf("render page %d: %w", pageNr, err)
 	}
 
+	// Surface pages whose only visible content is an image the renderer
+	// cannot decode: such pages come out (nearly) blank and look like a
+	// rendering bug unless flagged. Sample based: a lone watermark or page
+	// number must not mask the missing full page image.
+	if dev.unsupportedImages > 0 && canvasPaintedFraction(cv) < 0.005 {
+		dev.warn("page appears blank: its visible content consists of images with unsupported codecs (JBIG2/JPEG2000)")
+	}
+
 	return &Result{
 		Image:    cv.img,
 		WidthPt:  wp,
@@ -184,6 +205,27 @@ func Page(c context.Context, ctx *model.Context, pageNr int, o *Options) (*Resul
 		PageNr:   pageNr,
 		Warnings: dev.warnings,
 	}, nil
+}
+
+// canvasPaintedFraction estimates the fraction of pixels that differ from
+// the white background, sampling at most ~1M pixels.
+func canvasPaintedFraction(cv *canvas) float64 {
+	const maxSamples = 1 << 20
+	step := len(cv.img.Pix) / maxSamples
+	if step < 4 {
+		step = 4 // RGBA
+	}
+	samples, painted := 0, 0
+	for i := 0; i+3 < len(cv.img.Pix); i += step {
+		samples++
+		if cv.img.Pix[i] != 0xff || cv.img.Pix[i+1] != 0xff || cv.img.Pix[i+2] != 0xff || cv.img.Pix[i+3] != 0xff {
+			painted++
+		}
+	}
+	if samples == 0 {
+		return 0
+	}
+	return float64(painted) / float64(samples)
 }
 
 // pageRenderBox returns the effective visible box of a page.

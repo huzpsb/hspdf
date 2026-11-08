@@ -28,6 +28,9 @@ func (d *device) showText(bb []byte) {
 		codeLen = f.t0.codeLen
 	}
 	for i := 0; i+codeLen <= len(bb); {
+		if i&1023 == 0 && d.cancelled() {
+			return
+		}
 		var code uint32
 		for j := 0; j < codeLen; j++ {
 			code = code<<8 | uint32(bb[i+j])
@@ -44,7 +47,10 @@ func (d *device) showTextArray(arr []token) {
 	if ts.font == nil {
 		return
 	}
-	for _, t := range arr {
+	for k, t := range arr {
+		if k&1023 == 0 && d.cancelled() {
+			return
+		}
 		switch t.kind {
 		case tokStr:
 			d.showText(t.str)

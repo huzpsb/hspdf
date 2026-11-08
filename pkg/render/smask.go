@@ -65,10 +65,17 @@ func (d *device) renderSoftMask(o types.Object) *image.Alpha {
 	savedFonts := d.fonts
 	savedGlyphs := d.glyphs
 	savedImages := d.images
+	savedImgBytes := d.imgBytes
 	savedWarnings := d.warnings
 
 	// Render the mask group into a transparent canvas.
-	tmp := newCanvas(savedCV.w, savedCV.h)
+	tmp, ok := d.acquireGroupCanvas(savedCV.w, savedCV.h)
+	if !ok {
+		// Auxiliary canvas budget exhausted: render without the soft mask.
+		return nil
+	}
+	defer d.releaseGroupCanvas(tmp)
+	tmp.cancel = savedCV.cancel
 	d.cv = tmp
 	d.gs = newGState()
 	d.stack = nil
@@ -76,6 +83,7 @@ func (d *device) renderSoftMask(o types.Object) *image.Alpha {
 	d.fonts = map[string]*pdfFont{}
 	d.glyphs = map[glyphCacheKey][]subPath{}
 	d.images = map[int]*rasterImage{}
+	d.imgBytes = 0
 	d.warnings = nil
 
 	// Backdrop colour (BC) is painted into the group before its content.
@@ -158,6 +166,7 @@ func (d *device) renderSoftMask(o types.Object) *image.Alpha {
 	d.fonts = savedFonts
 	d.glyphs = savedGlyphs
 	d.images = savedImages
+	d.imgBytes = savedImgBytes
 	d.warnings = savedWarnings
 
 	// Extract the mask.

@@ -34,6 +34,13 @@ type toUnicodeCMap struct {
 	codeLen int
 }
 
+// maxToUnicodeMappings bounds the total number of code mappings derived from
+// a ToUnicode CMap. A bfrange entry may expand to 65536 mappings and blocks
+// may repeat; without an aggregate cap a few KB of CMap text can expand to
+// millions of map entries and exhaust memory. The cap comfortably covers the
+// full 2 byte code space.
+const maxToUnicodeMappings = 1 << 18
+
 // parseToUnicodeCMap parses the PostScript-like CMap syntax of a ToUnicode stream
 // and extracts codespace, bfchar and bfrange mappings.
 func parseToUnicodeCMap(bb []byte) (*toUnicodeCMap, error) {
@@ -227,6 +234,9 @@ func (cu *toUnicodeCMap) add(src, dst []byte) {
 	if len(src) == 0 {
 		return
 	}
+	if len(cu.mappings) >= maxToUnicodeMappings {
+		return
+	}
 	cu.mappings[codeOfBytes(src)] = utf16BytesToString(dst)
 }
 
@@ -239,6 +249,9 @@ func (cu *toUnicodeCMap) addRangeEntry(lo, hi, dst []byte) {
 	}
 	dstUnits := utf16BytesToUnits(dst)
 	for d := uint32(0); loC+d <= hiC; d++ {
+		if len(cu.mappings) >= maxToUnicodeMappings {
+			return
+		}
 		cu.mappings[loC+d] = unitsToString(shiftUnits(dstUnits, d))
 	}
 }
@@ -250,6 +263,9 @@ func (cu *toUnicodeCMap) addArrayEntry(lo []byte, dsts [][]byte) {
 	}
 	loC := codeOfBytes(lo)
 	for i, dst := range dsts {
+		if len(cu.mappings) >= maxToUnicodeMappings {
+			return
+		}
 		cu.mappings[loC+uint32(i)] = utf16BytesToString(dst)
 	}
 }

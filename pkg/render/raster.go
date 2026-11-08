@@ -20,11 +20,17 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"sort"
 )
 
 // subSamples is the number of vertical subsampling lines per pixel used for
 // anti-aliased rasterization.
 const subSamples = 4
+
+// maxRasterWork bounds the scanline work (rows x subsamples x edges) of one
+// rasterization; oversized paths degrade their anti-aliasing quality instead
+// of stalling the renderer.
+const maxRasterWork = 500_000_000
 
 // rgba is an 8 bit per channel non-premultiplied color.
 type rgba struct {
@@ -50,6 +56,8 @@ type canvas struct {
 	h   int
 	// cov is a reusable per pixel coverage buffer.
 	cov []float32
+	// cancel is an optional cancellation hook polled between scanlines.
+	cancel func() bool
 }
 
 func newCanvas(w, h int) *canvas {
@@ -75,6 +83,9 @@ func (cv *canvas) fillWhite() {
 
 // blend composites s over the pixel at (x,y) honoring a coverage value in [0,1].
 func (cv *canvas) blend(x, y int, c rgba, cov float64) {
+	if x < 0 || x >= cv.w || y < 0 || y >= cv.h {
+		return
+	}
 	if cov <= 0 || c.a == 0 {
 		return
 	}
@@ -162,20 +173,66 @@ func (cv *canvas) rasterize(sps []subPath, evenOdd bool) (image.Rectangle, bool)
 	cross := make([]float64, 0, 32)
 	dirs := make([]float64, 0, 32)
 
+	// Active edge table: edges are sorted by their top y so each scanline
+	// only visits the edges that can actually cross it.
+	sort.Slice(edges, func(i, j int) bool { return edges[i].y1 < edges[j].y1 })
+
+	// Cap the scanline work (rows x subsamples x edges) by degrading the
+	// anti-aliasing subsampling of oversized paths.
+	rows := int64(y1 - y0)
+	subs := subSamples
+	if est := rows * int64(subs) * int64(len(edges)); est > maxRasterWork {
+		if s := maxRasterWork / (rows * int64(len(edges))); s >= 1 {
+			subs = int(s)
+		}
+		if subs < 1 {
+			subs = 1
+		}
+		if subs > subSamples {
+			subs = subSamples
+		}
+	}
+
+	active := make([]edge, 0, 64)
+	nextEdge := 0
+
+	clearRowSpan := func(y int) {
+		base := y * cv.w
+		for x := x0; x < x1; x++ {
+			cv.cov[base+x] = 0
+		}
+	}
+
 	for row := y0; row < y1; row++ {
+		if cv.cancel != nil && cv.cancel() {
+			// Undo the coverage written by earlier rows of this call so the
+			// buffer stays clean for subsequent fills.
+			for y := y0; y < row; y++ {
+				clearRowSpan(y)
+			}
+			return image.Rectangle{}, false
+		}
 		base := row * cv.w
-		for sub := 0; sub < subSamples; sub++ {
-			y := float64(row) + (float64(sub)+0.5)/subSamples
+		for sub := 0; sub < subs; sub++ {
+			y := float64(row) + (float64(sub)+0.5)/float64(subs)
+			for nextEdge < len(edges) && edges[nextEdge].y1 <= y {
+				active = append(active, edges[nextEdge])
+				nextEdge++
+			}
 			cross = cross[:0]
 			dirs = dirs[:0]
-			for i := range edges {
-				e := &edges[i]
-				if e.y1 <= y && y < e.y2 {
+			// Compact the active set, dropping edges the scanline has passed.
+			a := active[:0]
+			for i := range active {
+				e := active[i]
+				if e.y2 > y {
+					a = append(a, e)
 					t := (y - e.y1) / (e.y2 - e.y1)
 					cross = append(cross, e.x1+t*(e.x2-e.x1))
 					dirs = append(dirs, e.dir)
 				}
 			}
+			active = a
 			if len(cross) < 2 {
 				continue
 			}
@@ -185,7 +242,7 @@ func (cv *canvas) rasterize(sps []subPath, evenOdd bool) (image.Rectangle, bool)
 			for i < len(cross)-1 {
 				if evenOdd {
 					// Pairs of crossings (0,1), (2,3), ...
-					emitSpan(cv.cov[base:base+cv.w], cross[i], cross[i+1], 1.0/subSamples, x0, x1)
+					emitSpan(cv.cov[base:base+cv.w], cross[i], cross[i+1], 1.0/float64(subs), x0, x1)
 					i += 2
 					continue
 				}
@@ -198,7 +255,7 @@ func (cv *canvas) rasterize(sps []subPath, evenOdd bool) (image.Rectangle, bool)
 					}
 				}
 				if j > i {
-					emitSpan(cv.cov[base:base+cv.w], cross[i], cross[j], 1.0/subSamples, x0, x1)
+					emitSpan(cv.cov[base:base+cv.w], cross[i], cross[j], 1.0/float64(subs), x0, x1)
 				}
 				i = j + 1
 			}
@@ -208,13 +265,22 @@ func (cv *canvas) rasterize(sps []subPath, evenOdd bool) (image.Rectangle, bool)
 	return image.Rect(x0, y0, x1, y1), true
 }
 
+// crossingSorter sorts crossing x positions and their winding directions in
+// parallel. O(n log n) replaces the former quadratic insertion sort that
+// stalled on paths with many crossings per scanline.
+type crossingSorter struct {
+	x, d []float64
+}
+
+func (s crossingSorter) Len() int           { return len(s.x) }
+func (s crossingSorter) Less(i, j int) bool { return s.x[i] < s.x[j] }
+func (s crossingSorter) Swap(i, j int) {
+	s.x[i], s.x[j] = s.x[j], s.x[i]
+	s.d[i], s.d[j] = s.d[j], s.d[i]
+}
+
 func sortCrossings(x []float64, d []float64) {
-	for i := 1; i < len(x); i++ {
-		for j := i; j > 0 && x[j] < x[j-1]; j-- {
-			x[j], x[j-1] = x[j-1], x[j]
-			d[j], d[j-1] = d[j-1], d[j]
-		}
-	}
+	sort.Sort(crossingSorter{x, d})
 }
 
 // emitSpan adds coverage of weight w for the horizontal span [xa,xb) into row.

@@ -30,6 +30,12 @@ type toUnicodeCMap struct {
 	min, max int // code length in bytes
 }
 
+// maxToUnicodeMappings bounds the total number of code mappings derived from
+// a ToUnicode CMap. A bfrange entry may expand to 65536 mappings; without an
+// aggregate cap a small stream with a few hundred ranges exhausts memory.
+// The cap comfortably covers the full 2 byte code space.
+const maxToUnicodeMappings = 1 << 18
+
 func newToUnicodeCMap() *toUnicodeCMap {
 	return &toUnicodeCMap{maps: map[uint32]string{}, min: 4, max: 1}
 }
@@ -75,8 +81,26 @@ func parseToUnicode(bb []byte) (*toUnicodeCMap, error) {
 					return nil, err
 				}
 				dstTok := toks[i+2]
+				if dstTok == "[" {
+					// Array form: [ <dst1> <dst2> ... ] tokenizes into
+					// separate tokens; consume them up to the closing ].
+					j := i + 3
+					var dsts []string
+					for j < len(toks) && toks[j] != "]" && toks[j] != "endbfrange" {
+						dsts = append(dsts, unicodeFromCMapToken(toks[j]))
+						j++
+					}
+					if j < len(toks) && toks[j] == "]" {
+						j++
+					}
+					if lo != nil && hi != nil {
+						tu.addRangeArray(lo, hi, dsts)
+					}
+					i = j
+					continue
+				}
 				if strings.HasPrefix(dstTok, "[") {
-					// Array form: [ <dst1> <dst2> ... ]
+					// Merged array token: [ <dst1> <dst2> ... ]
 					parts := strings.FieldsFunc(dstTok, func(r rune) bool { return r == '[' || r == ']' })
 					var dsts []string
 					for _, p := range parts {
@@ -106,6 +130,9 @@ func (tu *toUnicodeCMap) add(src []byte, dst string) {
 	if len(src) < 1 || len(src) > 4 {
 		return
 	}
+	if len(tu.maps) >= maxToUnicodeMappings {
+		return
+	}
 	tu.maps[codeOfBytes(src)] = dst
 	if len(src) < tu.min {
 		tu.min = len(src)
@@ -122,6 +149,9 @@ func (tu *toUnicodeCMap) addRange(lo, hi []byte, dst string) {
 		return
 	}
 	for c := l; ; c++ {
+		if len(tu.maps) >= maxToUnicodeMappings {
+			return
+		}
 		tu.add(codeBytes(c, len(lo)), shiftUnicode(dst, int(c-l)))
 		if c == h {
 			break
@@ -131,7 +161,18 @@ func (tu *toUnicodeCMap) addRange(lo, hi []byte, dst string) {
 
 func (tu *toUnicodeCMap) addRangeArray(lo, hi []byte, dsts []string) {
 	l, h := codeOfBytes(lo), codeOfBytes(hi)
+	if h < l || h-l > 65535 {
+		// Guard the span like addRange: iterating a 4 byte code space (up to
+		// 2^32 codes) would stall the renderer.
+		if len(dsts) > 0 {
+			tu.add(lo, dsts[0])
+		}
+		return
+	}
 	for c := l; ; c++ {
+		if len(tu.maps) >= maxToUnicodeMappings {
+			return
+		}
 		idx := int(c - l)
 		if idx >= 0 && idx < len(dsts) {
 			tu.add(codeBytes(c, len(lo)), dsts[idx])

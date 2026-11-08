@@ -268,11 +268,13 @@ func Probe(c context.Context, data []byte) (*Result, error) {
 
 // RenderPage rasterizes one page into a PNG.
 func RenderPage(c context.Context, data []byte, page int, dpi float64) (*Result, error) {
-	dpi = clamp(dpi, 36, 300)
+	dpi = clamp(dpi, 36, 600)
 	conf := defaultConf()
 	var buf bytes.Buffer
 	rendered := false
-	err := api.RenderPages(c, bytes.NewReader(data), []string{strconv.Itoa(page)}, &render.Options{DPI: dpi, Format: "png"}, func(res *render.Result) error {
+	// Interactive viewing: mark images we cannot decode (JBIG2/JPEG2000)
+	// with a faint placeholder instead of leaving unexplained holes.
+	err := api.RenderPages(c, bytes.NewReader(data), []string{strconv.Itoa(page)}, &render.Options{DPI: dpi, Format: "png", PlaceholderImages: true}, func(res *render.Result) error {
 		rendered = true
 		return render.Encode(&buf, res.Image, "png", 0)
 	}, conf)

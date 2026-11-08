@@ -122,13 +122,21 @@ func transformPath(sps []subPath, m mat) []subPath {
 	return out
 }
 
+// Maximum number of segments emitted by the fixed flattening budget of one
+// curve operator (see flattenCubic/flattenQuad); used to pre-check the path
+// point budget.
+const (
+	flattenCubicMaxSegments = 64
+	flattenQuadMaxSegments  = 48
+)
+
 // flattenCubic appends points of the cubic bezier from p0 via c1, c2 to p3.
 func flattenCubic(dst []pt, p0, c1, c2, p3 pt, tol float64) []pt {
 	// Estimate required subdivision count from control polygon length.
 	l := dist(p0, c1) + dist(c1, c2) + dist(c2, p3)
 	n := int(l/tol) + 2
-	if n > 64 {
-		n = 64
+	if n > flattenCubicMaxSegments {
+		n = flattenCubicMaxSegments
 	}
 	if n < 4 {
 		n = 4
@@ -152,8 +160,8 @@ func flattenCubic(dst []pt, p0, c1, c2, p3 pt, tol float64) []pt {
 func flattenQuad(dst []pt, p0, c, p1 pt, tol float64) []pt {
 	l := dist(p0, c) + dist(c, p1)
 	n := int(l/tol) + 2
-	if n > 48 {
-		n = 48
+	if n > flattenQuadMaxSegments {
+		n = flattenQuadMaxSegments
 	}
 	if n < 3 {
 		n = 3
