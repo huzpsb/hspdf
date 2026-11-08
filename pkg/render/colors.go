@@ -448,7 +448,7 @@ type pdfFunction struct {
 	expN           float64
 	fns            []*pdfFunction
 	bounds         []float64
-	prog           []string // type 4 tokens
+	prog           []psNode // type 4 program parsed into a node tree
 }
 
 // maxFunctionDepth bounds the nesting of (stitching) functions and
@@ -458,6 +458,52 @@ const (
 	maxFunctionDepth         = 16
 	maxSampledFunctionInputs = 8
 )
+
+// maxPSTokens bounds the token count of a type 4 (PostScript calculator)
+// program and maxPSProcDepth bounds the nesting of executed procs.
+const (
+	maxPSTokens    = 1 << 20
+	maxPSProcDepth = 32
+)
+
+// psNode is one parsed token of a type 4 program. A proc ({...}) group is a
+// node with isProc set whose proc field carries the nested nodes.
+type psNode struct {
+	tok    string
+	proc   []psNode
+	isProc bool
+}
+
+// parsePSNodes parses type 4 function tokens into a node tree in a single
+// linear pass over an explicit brace stack (no recursion). Unmatched braces
+// are tolerated: a stray "}" is dropped and an unclosed group's tokens never
+// execute, mirroring the previous skip-to-end behavior.
+func parsePSNodes(tokens []string) []psNode {
+	var stack [][]psNode
+	cur := []psNode{}
+	for _, tok := range tokens {
+		switch tok {
+		case "{":
+			stack = append(stack, cur)
+			cur = []psNode{}
+		case "}":
+			if n := len(stack); n > 0 {
+				parent := stack[n-1]
+				stack = stack[:n-1]
+				cur = append(parent, psNode{proc: cur, isProc: true})
+			}
+		default:
+			cur = append(cur, psNode{tok: tok})
+		}
+	}
+	// Attach unclosed groups so their tokens remain unexecutable.
+	for len(stack) > 0 {
+		parent := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		cur = append(parent, psNode{proc: cur, isProc: true})
+	}
+	return cur
+}
 
 // parseFunction resolves o into a pdfFunction.
 func (d *device) parseFunction(o types.Object) (*pdfFunction, error) {
@@ -505,7 +551,11 @@ func (d *device) parseFunctionDepth(o types.Object, depth int) (*pdfFunction, er
 			if err := o.DecodeWithLimit(d.decodeLimit()); err != nil {
 				return nil, err
 			}
-			fn.prog = strings.Fields(string(o.Content))
+			tokens := strings.Fields(string(o.Content))
+			if len(tokens) > maxPSTokens {
+				return nil, fmt.Errorf("calculator function: %d tokens exceeds limit %d", len(tokens), maxPSTokens)
+			}
+			fn.prog = parsePSNodes(tokens)
 		}
 		return fn, nil
 	}
@@ -861,7 +911,7 @@ func evalPSProgram(fn *pdfFunction, in []float64) ([]float64, error) {
 	vm := &psVM{}
 	// The input values start on the stack.
 	vm.stack = append(vm.stack, in...)
-	if err := vm.exec(fn.prog, 0, len(fn.prog), in); err != nil {
+	if err := vm.exec(fn.prog, 0, in); err != nil {
 		return nil, err
 	}
 	nOut := len(fn.rng)
@@ -891,100 +941,64 @@ func (vm *psVM) pop() (float64, error) {
 	return v, nil
 }
 
-// exec executes tokens[start:end). Procs ({...}) are collected and passed to
-// branch operators.
-func (vm *psVM) exec(prog []string, start, end int, in []float64) error {
-	i := start
-	for i < end {
-		tok := prog[i]
-		switch tok {
-		case "{":
-			// Find matching close brace and skip: procs are only meaningful
-			// for if/ifelse which scan them explicitly.
-			depth := 1
-			j := i + 1
-			for j < end && depth > 0 {
-				if prog[j] == "{" {
-					depth++
-				} else if prog[j] == "}" {
-					depth--
-				}
-				j++
-			}
-			i = j
+// exec executes the nodes of one program level. Procs ({...}) execute only
+// through if/ifelse, which resolve their target procs from the immediately
+// preceding nodes: O(1) work per branch instead of rescanning the token
+// stream, keeping evaluation linear for adversarially nested programs.
+func (vm *psVM) exec(prog []psNode, depth int, in []float64) error {
+	if depth > maxPSProcDepth {
+		return errors.New("calculator function: proc nesting too deep")
+	}
+	for i := 0; i < len(prog); i++ {
+		node := prog[i]
+		if node.isProc {
+			// Procs are only meaningful for if/ifelse.
 			continue
+		}
+		tok := node.tok
+		switch tok {
 		case "if", "ifelse":
 			nProcs := 1
 			if tok == "ifelse" {
 				nProcs = 2
 			}
-			// Collect the preceding nProcs procs by scanning backwards.
-			procs := make([][]string, nProcs)
-			pos := i
-			for k := nProcs - 1; k >= 0; k-- {
-				pStart, pEnd, ok := scanProcBack(prog, pos)
-				if !ok {
-					return errors.New("calculator function: proc scan failed")
-				}
-				procs[k] = prog[pStart:pEnd]
-				pos = pStart - 1
+			// The nProcs procs must be the immediately preceding nodes.
+			if i < nProcs || !prog[i-1].isProc || (nProcs == 2 && !prog[i-2].isProc) {
+				return errors.New("calculator function: proc scan failed")
 			}
 			var err error
 			if tok == "if" {
 				var cond float64
 				cond, err = vm.pop()
 				if err == nil && cond != 0 {
-					err = vm.exec(procs[0], 0, len(procs[0]), in)
+					err = vm.exec(prog[i-1].proc, depth+1, in)
 				}
 			} else {
 				var cond float64
 				cond, err = vm.pop()
 				if err == nil {
 					if cond != 0 {
-						err = vm.exec(procs[0], 0, len(procs[0]), in)
+						// True branch: the first of the two procs.
+						err = vm.exec(prog[i-2].proc, depth+1, in)
 					} else {
-						err = vm.exec(procs[1], 0, len(procs[1]), in)
+						err = vm.exec(prog[i-1].proc, depth+1, in)
 					}
 				}
 			}
 			if err != nil {
 				return err
 			}
-			i++
 			continue
 		}
 		if v, err := strconv.ParseFloat(tok, 64); err == nil {
 			vm.push(v)
-			i++
 			continue
 		}
 		if err := vm.op(tok, in); err != nil {
 			return err
 		}
-		i++
 	}
 	return nil
-}
-
-// scanProcBack finds the {...} proc ending just before index limit.
-func scanProcBack(prog []string, limit int) (int, int, bool) {
-	if limit <= 0 || limit > len(prog) || prog[limit-1] != "}" {
-		return 0, 0, false
-	}
-	depth := 0
-	j := limit - 1
-	for j >= 0 {
-		if prog[j] == "}" {
-			depth++
-		} else if prog[j] == "{" {
-			depth--
-			if depth == 0 {
-				return j + 1, limit - 1, true
-			}
-		}
-		j--
-	}
-	return 0, 0, false
 }
 
 func (vm *psVM) op(tok string, in []float64) error {

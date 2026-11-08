@@ -74,92 +74,111 @@ func isRegularByte(c byte) bool {
 	return !isContentWhitespace(c) && !isContentDelimiter(c)
 }
 
+// maxArrayNesting bounds the nesting depth of content stream arrays. The
+// scanner recurses once per nesting level; junk runs of '[', ')', '>', '{'
+// and '}' must not be able to exhaust the goroutine stack (a fatal error no
+// recover can catch).
+const maxArrayNesting = 64
+
 // next returns the next operand or operator token.
 // It returns an empty contentOperand at the end of input.
 func (s *contentScanner) next() (contentOperand, error) {
-	s.skipWhitespaceAndComments()
+	return s.nextDepth(0)
+}
 
-	if s.pos >= len(s.bb) {
-		return contentOperand{}, nil
-	}
+// nextDepth scans the next token at the given array nesting depth.
+// Single byte junk delimiters (')', '>', '{', '}') and skipped dictionaries
+// are consumed iteratively: one recursion level per array only.
+func (s *contentScanner) nextDepth(depth int) (contentOperand, error) {
+	for {
+		s.skipWhitespaceAndComments()
 
-	c := s.bb[s.pos]
-
-	switch {
-	case c == '(':
-		bb, err := s.scanLiteralString()
-		if err != nil {
-			return contentOperand{}, err
+		if s.pos >= len(s.bb) {
+			return contentOperand{}, nil
 		}
-		return contentOperand{str: bb}, nil
-	case c == '<':
-		if s.pos+1 < len(s.bb) && s.bb[s.pos+1] == '<' {
-			if err := s.skipDict(); err != nil {
+
+		c := s.bb[s.pos]
+
+		switch {
+		case c == '(':
+			bb, err := s.scanLiteralString()
+			if err != nil {
 				return contentOperand{}, err
 			}
-			return s.next()
-		}
-		bb, err := s.scanHexString()
-		if err != nil {
-			return contentOperand{}, err
-		}
-		return contentOperand{str: bb}, nil
-	case c == '[':
-		s.pos++
-		arr, err := s.scanArray()
-		if err != nil {
-			return contentOperand{}, err
-		}
-		return contentOperand{arr: arr}, nil
-	case c == ']':
-		s.pos++
-		return contentOperand{}, fmt.Errorf("unbalanced array delimiter")
-	case c == '/':
-		s.pos++
-		start := s.pos
-		for s.pos < len(s.bb) && isRegularByte(s.bb[s.pos]) {
-			s.pos++
-		}
-		name, err := types.DecodeName(string(s.bb[start:s.pos]))
-		if err != nil {
-			return contentOperand{}, err
-		}
-		return contentOperand{name: name}, nil
-	case c == '{' || c == '}':
-		s.pos++
-		return s.next()
-	default:
-		start := s.pos
-		for s.pos < len(s.bb) && isRegularByte(s.bb[s.pos]) {
-			s.pos++
-		}
-		tok := string(s.bb[start:s.pos])
-		if tok == "" {
-			s.pos++
-			return s.next()
-		}
-
-		// Numbers take precedence over operator detection.
-		if v, err := strconv.ParseFloat(tok, 64); err == nil {
-			return contentOperand{num: v, hasNum: true}, nil
-		}
-
-		// Operators consist of letters, digits and the characters ' and ".
-		isOperator := true
-		for i := 0; i < len(tok); i++ {
-			b := tok[i]
-			if !(b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' ||
-				b == '\'' || b == '"' || b == '*') {
-				isOperator = false
-				break
+			return contentOperand{str: bb}, nil
+		case c == '<':
+			if s.pos+1 < len(s.bb) && s.bb[s.pos+1] == '<' {
+				if err := s.skipDict(); err != nil {
+					return contentOperand{}, err
+				}
+				continue
 			}
-		}
-		if isOperator {
-			return contentOperand{operator: tok}, nil
-		}
+			bb, err := s.scanHexString()
+			if err != nil {
+				return contentOperand{}, err
+			}
+			return contentOperand{str: bb}, nil
+		case c == '[':
+			if depth >= maxArrayNesting {
+				return contentOperand{}, fmt.Errorf("array nesting exceeds %d levels", maxArrayNesting)
+			}
+			s.pos++
+			arr, err := s.scanArray(depth)
+			if err != nil {
+				return contentOperand{}, err
+			}
+			return contentOperand{arr: arr}, nil
+		case c == ']':
+			s.pos++
+			return contentOperand{}, fmt.Errorf("unbalanced array delimiter")
+		case c == '/':
+			s.pos++
+			start := s.pos
+			for s.pos < len(s.bb) && isRegularByte(s.bb[s.pos]) {
+				s.pos++
+			}
+			name, err := types.DecodeName(string(s.bb[start:s.pos]))
+			if err != nil {
+				return contentOperand{}, err
+			}
+			return contentOperand{name: name}, nil
+		case c == '{' || c == '}':
+			s.pos++
+			continue
+		default:
+			start := s.pos
+			for s.pos < len(s.bb) && isRegularByte(s.bb[s.pos]) {
+				s.pos++
+			}
+			tok := string(s.bb[start:s.pos])
+			if tok == "" {
+				// Single byte junk delimiter: consume and keep scanning.
+				s.pos++
+				continue
+			}
 
-		// Junk token to ignore.
-		return contentOperand{name: "#" + tok}, nil
+			// Numbers take precedence over operator detection.
+			if v, err := strconv.ParseFloat(tok, 64); err == nil {
+				return contentOperand{num: v, hasNum: true}, nil
+			}
+
+			// Operators consist of letters, digits and the characters ' and ".
+			isOperator := true
+			for i := 0; i < len(tok); i++ {
+				b := tok[i]
+				if !(b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' ||
+					b == '\'' || b == '"' || b == '*') {
+					isOperator = false
+					break
+				}
+			}
+			if isOperator {
+				return contentOperand{operator: tok}, nil
+			}
+
+			// Junk token to ignore.
+			return contentOperand{name: "#" + tok}, nil
+		}
 	}
 }
 
@@ -181,7 +200,7 @@ func (s *contentScanner) skipWhitespaceAndComments() {
 }
 
 // scanArray scans array elements until the closing bracket.
-func (s *contentScanner) scanArray() ([]contentOperand, error) {
+func (s *contentScanner) scanArray(depth int) ([]contentOperand, error) {
 	arr := []contentOperand{}
 	for {
 		s.skipWhitespaceAndComments()
@@ -192,7 +211,7 @@ func (s *contentScanner) scanArray() ([]contentOperand, error) {
 			s.pos++
 			return arr, nil
 		}
-		op, err := s.next()
+		op, err := s.nextDepth(depth + 1)
 		if err != nil {
 			return nil, err
 		}

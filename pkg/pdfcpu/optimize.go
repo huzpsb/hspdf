@@ -45,30 +45,60 @@ func keptObjectIndRef(ctx *model.Context, objNr int) *types.IndirectRef {
 	return types.NewIndirectRef(objNr, gen)
 }
 
-func optimizeContentStreamUsage(c context.Context, ctx *model.Context, sd *types.StreamDict, objNr int) (*types.IndirectRef, error) {
-	f := ctx.Optimize.ContentStreamCache
-	if len(f) == 0 {
-		f[objNr] = sd
-		return nil, nil
+// contentStreamHashes returns the hash index of cached content streams,
+// rebuilding it from the cache on first use (e.g. after a context reset or
+// when the cache was populated directly).
+func contentStreamHashes(ctx *model.Context) map[[sha256.Size]byte][]int {
+	hashes := ctx.Optimize.ContentStreamHashes
+	if hashes != nil {
+		return hashes
 	}
 
+	hashes = map[[sha256.Size]byte][]int{}
+	for objNr, sd1 := range ctx.Optimize.ContentStreamCache {
+		if sd1 == nil || sd1.Raw == nil {
+			continue
+		}
+		h := sha256.Sum256(sd1.Raw)
+		hashes[h] = append(hashes[h], objNr)
+	}
+	ctx.Optimize.ContentStreamHashes = hashes
+	return hashes
+}
+
+// contentStreamCandidates returns the cached content stream object numbers
+// that may equal sd. Encoded bytes decide the outcome of a comparison, so a
+// hash lookup keeps candidate discovery independent of the cache size: a
+// length scan over all cached streams degrades quadratically for documents
+// with many equal length but distinct content streams.
+func contentStreamCandidates(ctx *model.Context, sd *types.StreamDict) []int {
+	if sd.Raw == nil || sd.StreamLength == nil {
+		// Unloaded stream: no hash possible, fall back to a length prefilter.
+		var candidates []int
+		for objNr1, sd1 := range ctx.Optimize.ContentStreamCache {
+			if sd1 != nil && sd1.StreamLength != nil && *sd1.StreamLength == *sd.StreamLength {
+				candidates = append(candidates, objNr1)
+			}
+		}
+		return candidates
+	}
+	h := sha256.Sum256(sd.Raw)
+	return contentStreamHashes(ctx)[h]
+}
+
+func optimizeContentStreamUsage(c context.Context, ctx *model.Context, sd *types.StreamDict, objNr int) (*types.IndirectRef, error) {
+	f := ctx.Optimize.ContentStreamCache
 	if f[objNr] != nil {
 		return nil, nil
 	}
 
-	cachedObjNrs := []int{}
-	for objNr, sd1 := range f {
-		if *sd1.StreamLength == *sd.StreamLength {
-			cachedObjNrs = append(cachedObjNrs, objNr)
-		}
-	}
-	if len(cachedObjNrs) == 0 {
-		f[objNr] = sd
-		return nil, nil
-	}
+	hashable := sd.Raw != nil && sd.StreamLength != nil
 
-	for _, objNr1 := range cachedObjNrs {
+	for _, objNr1 := range contentStreamCandidates(ctx, sd) {
 		sd1 := f[objNr1]
+		if sd1 == nil {
+			continue
+		}
 		// Matching encoded bytes also need matching stream dictionaries to preserve their meaning.
 		ok, err := model.EqualObjects(c, *sd, *sd1, ctx.XRefTable, nil)
 		if err != nil {
@@ -82,6 +112,11 @@ func optimizeContentStreamUsage(c context.Context, ctx *model.Context, sd *types
 	}
 
 	f[objNr] = sd
+	if hashable {
+		h := sha256.Sum256(sd.Raw)
+		hashes := contentStreamHashes(ctx)
+		hashes[h] = append(hashes[h], objNr)
+	}
 	return nil, nil
 }
 
@@ -1349,6 +1384,7 @@ func optimizeFontAndImages(c context.Context, ctx *model.Context) error {
 	}
 
 	ctx.Optimize.ContentStreamCache = map[int]*types.StreamDict{}
+	ctx.Optimize.ContentStreamHashes = map[[sha256.Size]byte][]int{}
 	ctx.Optimize.FormStreamCache = map[int]*types.StreamDict{}
 
 	// Identify all duplicate objects.

@@ -985,6 +985,14 @@ func dictNameValue(d types.Dict, key string) string {
 	return ""
 }
 
+// Bounds for CIDFont W array expansion (mirrors pkg/render: maxCIDWidthSpan /
+// maxCIDWidthEntries). A corrupt W range like [0 4000000000 500] must not
+// expand to billions of map entries.
+const (
+	maxCIDWidthSpan    = 65535
+	maxCIDWidthEntries = 1 << 20
+)
+
 // parseCIDWidths parses the CIDFont W array into f.cidWidths.
 func (e *extractor) parseCIDWidths(o types.Object, f *textFont) error {
 	arr, err := e.ctx.DereferenceArray(o)
@@ -1008,7 +1016,9 @@ func (e *extractor) parseCIDWidths(o types.Object, f *textFont) error {
 			}
 			for j, wo := range wArr {
 				if w, err := e.ctx.DereferenceNumber(wo); err == nil {
-					f.cidWidths[uint32(c)+uint32(j)] = w
+					if k := c + float64(j); c >= 0 && k <= 0xFFFFFFFF && len(f.cidWidths) < maxCIDWidthEntries {
+						f.cidWidths[uint32(k)] = w
+					}
 				}
 			}
 			i += 2
@@ -1029,13 +1039,19 @@ func (e *extractor) parseCIDWidths(o types.Object, f *textFont) error {
 			}
 			for j, wo := range ws {
 				if wv, err := e.ctx.DereferenceNumber(wo); err == nil {
-					f.cidWidths[uint32(c)+uint32(j)] = wv
+					if k := c + float64(j); c >= 0 && k <= 0xFFFFFFFF && len(f.cidWidths) < maxCIDWidthEntries {
+						f.cidWidths[uint32(k)] = wv
+					}
 				}
 			}
 		} else {
 			w, err := e.ctx.DereferenceNumber(arr[i+2])
 			if err != nil {
 				return err
+			}
+			if c < 0 || c2 < c || c2-c > maxCIDWidthSpan || len(f.cidWidths)+int(c2-c+1) > maxCIDWidthEntries {
+				i += 3
+				continue
 			}
 			for cc := uint32(c); cc <= uint32(c2); cc++ {
 				f.cidWidths[cc] = w

@@ -57,6 +57,16 @@ const (
 	ocrMarkerKey  = "HspdfOcr"
 	ocrFontPrefix = "P2OcrFont" // resource name prefix
 	ocrMinImgDim  = 16          // skip tiny decorations
+
+	// ocrMaxDecodePixels bounds the pixel count of a single image decoded
+	// for OCR. The detection stage rescales its input to a 960px long side,
+	// so larger sources contribute nothing but decode-time memory.
+	ocrMaxDecodePixels = 50_000_000
+	// ocrMaxImageDim caps the long side of the RGB buffers retained for
+	// recognition; ocrRGBBudget bounds the total bytes one OCR job retains
+	// across all selected pages.
+	ocrMaxImageDim = 1600
+	ocrRGBBudget   = 256 << 20
 )
 
 // ocrPlacement is one /Do invocation of an image XObject with its CTM.
@@ -121,10 +131,11 @@ type ocrPagePlan struct {
 // caller; line results are handed back via ApplyLines. Marks only persist
 // if the job is applied and the context written.
 type OCRJob struct {
-	ctx    *model.Context
-	order  []int // planned page numbers
-	pages  map[int]*ocrPagePlan
-	Images []OCRImage
+	ctx      *model.Context
+	order    []int // planned page numbers
+	pages    map[int]*ocrPagePlan
+	Images   []OCRImage
+	rgbBytes int64 // bytes retained by Images
 }
 
 // Context returns the parsed context the job is working on.
@@ -252,6 +263,11 @@ func planOCRPage(c context.Context, ctx *model.Context, job *OCRJob, pageNr int)
 		if _, found := sd.Find(ocrMarkerKey); found {
 			continue // already OCR'd by an earlier run
 		}
+		if job.rgbBytes >= ocrRGBBudget {
+			// Cumulative RGB budget exhausted: leave this image unmarked so
+			// a later run can still pick it up.
+			continue
+		}
 		sd.Dict.Insert(ocrMarkerKey, types.Boolean(true)) // mark even on empty results
 		pl.marked++
 		w, h, rgb, err := extractOCRImage(c, ctx, sd, objNr)
@@ -262,6 +278,7 @@ func planOCRPage(c context.Context, ctx *model.Context, job *OCRJob, pageNr int)
 			continue
 		}
 		pl.imgIdx = append(pl.imgIdx, len(job.Images))
+		job.rgbBytes += int64(len(rgb))
 		job.Images = append(job.Images, OCRImage{PageNr: pageNr, ObjNr: objNr, W: w, H: h, RGB: rgb})
 	}
 	return nil
@@ -464,6 +481,9 @@ func extractOCRImage(c context.Context, ctx *model.Context, sd *types.StreamDict
 	if *w < ocrMinImgDim || *h < ocrMinImgDim {
 		return 0, 0, nil, fmt.Errorf("image too small")
 	}
+	if int64(*w)*int64(*h) > ocrMaxDecodePixels {
+		return 0, 0, nil, fmt.Errorf("image %dx%d exceeds %d pixel decode limit", *w, *h, ocrMaxDecodePixels)
+	}
 	im, err := ExtractImage(c, ctx, sd, false, fmt.Sprintf("obj%d", objNr), objNr, false)
 	if err != nil {
 		return 0, 0, nil, err
@@ -472,7 +492,42 @@ func extractOCRImage(c context.Context, ctx *model.Context, sd *types.StreamDict
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("decode %s: %w", im.FileType, err)
 	}
-	return *w, *h, ocr.ImageToRGB(decoded), nil
+	if b := decoded.Bounds(); max(b.Dx(), b.Dy()) > ocrMaxImageDim {
+		return ocrImageToRGB(decoded, ocrMaxImageDim)
+	}
+	b := decoded.Bounds()
+	return b.Dx(), b.Dy(), ocr.ImageToRGB(decoded), nil
+}
+
+// ocrImageToRGB converts img to tightly packed RGB8, nearest-neighbor
+// downscaled so that the long side does not exceed maxDim. The returned
+// dimensions match the returned buffer; the detection pipeline rescales to a
+// 960px long side anyway, so bounded buffers preserve recognition results
+// while capping per-image memory.
+func ocrImageToRGB(img image.Image, maxDim int) (int, int, []uint8, error) {
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w <= 0 || h <= 0 {
+		return 0, 0, nil, fmt.Errorf("empty image")
+	}
+	if long := max(w, h); long > maxDim {
+		r := float64(maxDim) / float64(long)
+		w = max(1, int(float64(w)*r))
+		h = max(1, int(float64(h)*r))
+	}
+	out := make([]uint8, w*h*3)
+	for y := 0; y < h; y++ {
+		sy := b.Min.Y + y*b.Dy()/h
+		for x := 0; x < w; x++ {
+			sx := b.Min.X + x*b.Dx()/w
+			r, g, bl, _ := img.At(sx, sy).RGBA()
+			i := (y*w + x) * 3
+			out[i] = uint8(r >> 8)
+			out[i+1] = uint8(g >> 8)
+			out[i+2] = uint8(bl >> 8)
+		}
+	}
+	return w, h, out, nil
 }
 
 // ocrMapRun maps a recognized quad (image pixels, y down) into page space

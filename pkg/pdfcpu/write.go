@@ -536,7 +536,10 @@ func writeXRefSubsection(c context.Context, ctx *model.Context, start int, size 
 		return err
 	}
 
+	// Collect log lines only when write logging is on: building them
+	// unconditionally costs one fmt.Sprintf allocation per xref entry.
 	var lines []string
+	logLines := log.WriteEnabled()
 
 	for i := start; i < start+size; i++ {
 		if err := contextutil.Check(c); err != nil {
@@ -562,14 +565,16 @@ func writeXRefSubsection(c context.Context, ctx *model.Context, start int, size 
 			s = fmt.Sprintf("%010d %05d n%2s", off, *entry.Generation, w.Eol)
 		}
 
-		lines = append(lines, fmt.Sprintf("%d: %s", i, s))
+		if logLines {
+			lines = append(lines, fmt.Sprintf("%d: %s", i, s))
+		}
 
 		if _, err := w.WriteString(s); err != nil {
 			return err
 		}
 	}
 
-	if log.WriteEnabled() {
+	if logLines {
 		log.Write.Printf("\n%s\n", strings.Join(lines, ""))
 		log.Write.Printf("writeXRefSubsection: end\n")
 	}

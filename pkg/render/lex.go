@@ -44,9 +44,9 @@ type token struct {
 	str   []byte
 	name  string
 	op    string
-	arr   []token     // array elements
+	arr   []token          // array elements
 	dict  map[string]token // inline image entries: key -> value token
-	raw   []byte      // inline image data between ID and EI
+	raw   []byte           // inline image data between ID and EI
 	tokOK bool
 }
 
@@ -58,8 +58,9 @@ func (t token) boolean() bool {
 // lexer tokenizes decoded content streams. It differs from a strict PDF object
 // lexer in that it understands inline image binary payloads.
 type lexer struct {
-	bb  []byte
-	pos int
+	bb            []byte
+	pos           int
+	inInlineImage bool // suppresses BI recognition while scanning inline image entries
 }
 
 func newLexer(bb []byte) *lexer { return &lexer{bb: bb} }
@@ -76,75 +77,84 @@ func isDelim(c byte) bool {
 func isRegular(c byte) bool { return !isWS(c) && !isDelim(c) }
 
 // next returns the next token.
+// Single byte junk delimiters (')', '>', '{', '}') are consumed iteratively:
+// a junk run must not be able to exhaust the goroutine stack (a fatal error
+// no recover can catch).
 func (lx *lexer) next() (token, error) {
-	lx.skipWS()
-	if lx.pos >= len(lx.bb) {
-		return token{kind: tokEOF}, nil
-	}
-	c := lx.bb[lx.pos]
-	switch {
-	case c == '(':
-		bb, err := lx.literalString()
-		return token{kind: tokStr, str: bb}, err
-	case c == '<':
-		if lx.pos+1 < len(lx.bb) && lx.bb[lx.pos+1] == '<' {
-			// A dict operand: skip it entirely (only used by ignored ops).
-			lx.pos += 2
-			depth := 1
-			for lx.pos < len(lx.bb) && depth > 0 {
-				if lx.bb[lx.pos] == '<' && lx.pos+1 < len(lx.bb) && lx.bb[lx.pos+1] == '<' {
-					depth++
-					lx.pos += 2
-					continue
+	for {
+		lx.skipWS()
+		if lx.pos >= len(lx.bb) {
+			return token{kind: tokEOF}, nil
+		}
+		c := lx.bb[lx.pos]
+		switch {
+		case c == '(':
+			bb, err := lx.literalString()
+			return token{kind: tokStr, str: bb}, err
+		case c == '<':
+			if lx.pos+1 < len(lx.bb) && lx.bb[lx.pos+1] == '<' {
+				// A dict operand: skip it entirely (only used by ignored ops).
+				lx.pos += 2
+				depth := 1
+				for lx.pos < len(lx.bb) && depth > 0 {
+					if lx.bb[lx.pos] == '<' && lx.pos+1 < len(lx.bb) && lx.bb[lx.pos+1] == '<' {
+						depth++
+						lx.pos += 2
+						continue
+					}
+					if lx.bb[lx.pos] == '>' && lx.pos+1 < len(lx.bb) && lx.bb[lx.pos+1] == '>' {
+						depth--
+						lx.pos += 2
+						continue
+					}
+					lx.pos++
 				}
-				if lx.bb[lx.pos] == '>' && lx.pos+1 < len(lx.bb) && lx.bb[lx.pos+1] == '>' {
-					depth--
-					lx.pos += 2
-					continue
-				}
+				return token{kind: tokDictOpen}, nil
+			}
+			bb, err := lx.hexString()
+			return token{kind: tokStr, str: bb}, err
+		case c == '[':
+			lx.pos++
+			return token{kind: tokArrOpen}, nil
+		case c == ']':
+			lx.pos++
+			return token{kind: tokArrClose}, nil
+		case c == '/':
+			lx.pos++
+			start := lx.pos
+			for lx.pos < len(lx.bb) && isRegular(lx.bb[lx.pos]) {
 				lx.pos++
 			}
-			return token{kind: tokDictOpen}, nil
-		}
-		bb, err := lx.hexString()
-		return token{kind: tokStr, str: bb}, err
-	case c == '[':
-		lx.pos++
-		return token{kind: tokArrOpen}, nil
-	case c == ']':
-		lx.pos++
-		return token{kind: tokArrClose}, nil
-	case c == '/':
-		lx.pos++
-		start := lx.pos
-		for lx.pos < len(lx.bb) && isRegular(lx.bb[lx.pos]) {
+			name, err := decodeName(string(lx.bb[start:lx.pos]))
+			if err != nil {
+				return token{}, err
+			}
+			return token{kind: tokName, name: name}, nil
+		case c == '{' || c == '}':
 			lx.pos++
+			continue
+		default:
+			start := lx.pos
+			for lx.pos < len(lx.bb) && isRegular(lx.bb[lx.pos]) {
+				lx.pos++
+			}
+			tok := string(lx.bb[start:lx.pos])
+			if tok == "" {
+				// Single byte junk delimiter: consume and keep scanning.
+				lx.pos++
+				continue
+			}
+			if v, err := strconv.ParseFloat(tok, 64); err == nil {
+				return token{kind: tokNum, num: v}, nil
+			}
+			if tok == "BI" && !lx.inInlineImage {
+				// The flag breaks the next()/inlineImage() cycle: a junk
+				// entry stream of repeated BI operators must not recurse
+				// once per operator (fatal stack overflow).
+				return lx.inlineImage()
+			}
+			return token{kind: tokOp, op: tok}, nil
 		}
-		name, err := decodeName(string(lx.bb[start:lx.pos]))
-		if err != nil {
-			return token{}, err
-		}
-		return token{kind: tokName, name: name}, nil
-	case c == '{' || c == '}':
-		lx.pos++
-		return lx.next()
-	default:
-		start := lx.pos
-		for lx.pos < len(lx.bb) && isRegular(lx.bb[lx.pos]) {
-			lx.pos++
-		}
-		tok := string(lx.bb[start:lx.pos])
-		if tok == "" {
-			lx.pos++
-			return lx.next()
-		}
-		if v, err := strconv.ParseFloat(tok, 64); err == nil {
-			return token{kind: tokNum, num: v}, nil
-		}
-		if tok == "BI" {
-			return lx.inlineImage()
-		}
-		return token{kind: tokOp, op: tok}, nil
 	}
 }
 
@@ -167,6 +177,10 @@ func (lx *lexer) skipWS() {
 
 // inlineImage parses BI ... ID <binary> EI and returns a complete token.
 func (lx *lexer) inlineImage() (token, error) {
+	prev := lx.inInlineImage
+	lx.inInlineImage = true
+	defer func() { lx.inInlineImage = prev }()
+
 	entries := map[string]token{}
 	for {
 		lx.skipWS()

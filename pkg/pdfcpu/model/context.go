@@ -325,6 +325,13 @@ type OptimizationContext struct {
 	// ContentStreamCache maps object numbers to content streams used for duplicate detection.
 	ContentStreamCache map[int]*types.StreamDict
 
+	// ContentStreamHashes maps the sha256 of cached content stream bytes to
+	// their object numbers, keeping duplicate detection independent of the
+	// cache size (many equal length but distinct streams must not turn the
+	// lookup quadratic). Maintained lazily; nil triggers a rebuild from
+	// ContentStreamCache.
+	ContentStreamHashes map[[32]byte][]int
+
 	// FormStreamCache maps object numbers to Form XObject streams used for duplicate detection.
 	FormStreamCache map[int]*types.StreamDict
 
