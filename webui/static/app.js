@@ -1,4 +1,4 @@
-/* pdfcpu2 webui — application logic (no framework, no external deps). */
+/* hspdf webui — application logic (no framework, no external deps). */
 'use strict';
 
 /* ============================= tiny DOM helpers ============================= */
@@ -87,8 +87,8 @@ function warn(context, err) {
 
 /* ============================= preferences ============================= */
 
-const PREFS_KEY = 'pdfcpu2.webui.prefs';
-const LAST_VALUES_KEY = 'pdfcpu2.webui.lastValues';
+const PREFS_KEY = 'hspdf.webui.prefs';
+const LAST_VALUES_KEY = 'hspdf.webui.lastValues';
 
 // Engine fallback when the preference is cleared.
 const DEFAULT_TSA = 'http://timestamp.digicert.com';
@@ -206,6 +206,148 @@ function renderEngineStatus() {
         box.textContent = t('engineLoading');
     }
     updateRunState();
+}
+
+/* ============================= OCR worker pool =============================
+   The Go wasm engine is single-threaded (Go has no wasm threads yet), so OCR
+   recognition — which dominates the runtime and is line-parallel by nature —
+   is fanned out to a small pool of extra engine instances. Detection (one
+   fixed-cost pass per image) stays on the main worker; the main worker also
+   joins the pool as a member and serves as the retry target. Each pool
+   worker is a full engine instance (own wasm memory, own model copy, no
+   SharedArrayBuffer involved), so the pool is capped to protect RAM. */
+
+const OCR_POOL_MAX = 4;
+
+class RpcWorker {
+    constructor(url) {
+        this.pending = new Map();
+        this.seq = 0;
+        this.failed = false;
+        this.worker = new Worker(url);
+        this.readyPromise = new Promise((resolve, reject) => {
+            this._resolve = resolve;
+            this._reject = reject;
+        });
+        this.worker.onmessage = (ev) => {
+            const m = ev.data || {};
+            if (m.type === 'ready') {
+                this._resolve();
+                return;
+            }
+            if (m.type === 'error') {
+                this.failed = true;
+                this._reject(new Error(m.error || 'worker failed'));
+                for (const {reject: rej} of this.pending.values()) rej(new Error(m.error || 'worker failed'));
+                this.pending.clear();
+                return;
+            }
+            if (m.type === 'rpc' && this.pending.has(m.id)) {
+                const {resolve, reject} = this.pending.get(m.id);
+                this.pending.delete(m.id);
+                if (m.ok) resolve(m.res);
+                else reject(new Error(m.error || 'engine error'));
+            }
+        };
+        this.worker.onerror = (e) => {
+            this.failed = true;
+            this._reject(new Error(e.message || 'worker failed'));
+        };
+    }
+
+    call(fn, ...args) {
+        if (this.failed) return Promise.reject(new Error('worker failed'));
+        return this.readyPromise.then(() => new Promise((resolve, reject) => {
+            const id = 'p' + ++this.seq;
+            this.pending.set(id, {resolve, reject});
+            this.worker.postMessage({id, fn, args});
+        }));
+    }
+
+    terminate() {
+        this.failed = true;
+        try { this.worker.terminate(); } catch (e) { /* ignore */ }
+    }
+}
+
+const ocrPool = {
+    size: Math.max(1, Math.min(navigator.hardwareConcurrency || 4, OCR_POOL_MAX)),
+    workers: null,  // RpcWorker[] once booted ([] if permanently unavailable)
+    booting: null,
+
+    ensure() {
+        if (this.workers) return Promise.resolve(this.workers);
+        if (!this.booting) {
+            this.booting = (async () => {
+                const ws = [];
+                for (let i = 0; i < this.size; i++) ws.push(new RpcWorker('./worker.js'));
+                const boot = Promise.all(ws.map((w) => w.readyPromise));
+                const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('pool boot timeout')), 120000));
+                try {
+                    await Promise.race([boot, timeout]);
+                    this.workers = ws;
+                    console.info('[webui] ocr pool ready:', ws.length + ' workers');
+                } catch (err) {
+                    console.warn('[webui] ocr pool unavailable, recognizing on main worker:', err && err.message);
+                    ws.forEach((w) => w.terminate());
+                    this.workers = [];  // stay serial for this session
+                }
+                return this.workers;
+            })();
+        }
+        return this.booting.then(() => this.workers);
+    },
+};
+
+const mainEngine = {isMain: true, call: (fn, ...args) => engine.call(fn, ...args)};
+
+// Recognize boxes on one image across the pool; returns [{box, text}, ...]
+// in the order of `boxes`.
+async function ocrRecImage(rgb, w, h, boxes) {
+    if (!boxes || !boxes.length) return [];
+    const pool = await ocrPool.ensure();
+    const members = pool.concat([mainEngine]);
+    const chunkCount = Math.min(boxes.length, members.length);
+    const chunkSize = Math.ceil(boxes.length / chunkCount);
+    const chunks = [];
+    for (let i = 0; i < boxes.length; i += chunkSize) chunks.push(boxes.slice(i, i + chunkSize));
+    const parts = await Promise.all(chunks.map(async (chunk, j) => {
+        const m = members[j % members.length];
+        try {
+            const r = await m.call('ocrRec', rgb, w, h, chunk);
+            return r.lines || [];
+        } catch (err) {
+            if (m.isMain) throw err;
+            console.warn('[webui] ocr worker chunk failed, retrying on main engine:', err && err.message);
+            const r = await engine.call('ocrRec', rgb, w, h, chunk);
+            return r.lines || [];
+        }
+    }));
+    return parts.flat();
+}
+
+// Pooled OCR: plan (main) -> det (main) -> rec (pool+main) -> assemble (main).
+async function runOcrPooled(data, params) {
+    const plan = await engine.call('ocrBegin', data, params || {});
+    ocrPool.ensure();  // warm the pool while det crunches
+    if (!plan.images || !plan.images.length) {
+        return {ok: true, imagesProcessed: plan.imagesProcessed || 0};
+    }
+    const results = [];
+    for (let i = 0; i < plan.images.length; i++) {
+        const im = plan.images[i];
+        setBusyText(t('ocrBusy')(i + 1, plan.images.length));
+        const det = await engine.call('ocrDet', im.rgb, im.w, im.h);
+        const boxes = det.boxes || [];
+        setBusyText(t('ocrBusy')(i + 1, plan.images.length, boxes.length));
+        results.push(await ocrRecImage(im.rgb, im.w, im.h, boxes));
+    }
+    return await engine.call('ocrEnd', plan.jobId, results);
+}
+
+function setBusyText(s) {
+    const el$ = $('#busyText');
+    if (el$) el$.textContent = s;
 }
 
 /* ============================= files ============================= */
@@ -561,7 +703,7 @@ const TOOLS = {
         fields: [
             {k: 'pages', t: 'text', label: 'fld_pages', hint: 'fld_pages_hint', placeholder: '1-3, 5'},
         ],
-        exec: (v, file) => engine.call('ocr', file.data, v),
+        exec: (v, file) => runOcrPooled(file.data, v),
     },
 
     solidify: {
@@ -1705,7 +1847,7 @@ function applyPrefsFromDialog() {
 
 /* ============================= GitHub support prompt ============================= */
 
-const STAR_PROMPT_KEY = 'pdfcpu2.webui.starPromptSeen';
+const STAR_PROMPT_KEY = 'hspdf.webui.starPromptSeen';
 
 function openStarPrompt() {
     const dialog = $('#starDialog');

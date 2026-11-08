@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 // GHSA-g5q6-53hx-f68j prevents attacker-controlled poster page dimensions from creating unbounded tile grids.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-g5q6-53hx-f68j
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-g5q6-53hx-f68j
 
 import (
 	"context"
@@ -25,8 +27,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func TestGHSA_g5q6_53hx_f68j_PosterTileLimit(t *testing.T) {

@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/api"
-	"github.com/huzpsb/pdfcpu2/pkg/cli"
+	"github.com/huzpsb/hspdf/pkg/api"
+	"github.com/huzpsb/hspdf/pkg/cli"
 )
 
 func extractTextForObfuscation(t *testing.T, inFile, outFile string) string {

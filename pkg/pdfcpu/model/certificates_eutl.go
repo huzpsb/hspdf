@@ -17,6 +17,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 import (
@@ -24,7 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/huzpsb/pdfcpu2/internal/fileutil"
+	"github.com/huzpsb/hspdf/internal/fileutil"
 )
 
 const bundledDefaultCertificates = true

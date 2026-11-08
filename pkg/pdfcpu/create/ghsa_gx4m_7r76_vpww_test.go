@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package create
 
 // GHSA-gx4m-7r76-vpww: a page number in a create template must be bounded before blank pages are allocated and
 // rendered, so a few bytes of JSON cannot select gigabytes of memory.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-gx4m-7r76-vpww
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-gx4m-7r76-vpww
 
 import (
 	"fmt"

@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 // Package filter contains PDF filter implementations.
 package filter
 
@@ -23,7 +25,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/huzpsb/pdfcpu2/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/log"
 )
 
 // PDF defines the following filters. See also 7.4 in the PDF spec.

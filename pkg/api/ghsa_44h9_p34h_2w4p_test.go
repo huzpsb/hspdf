@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 // GHSA-44h9-p34h-2w4p: untrusted create/form input must not read images outside the configured root.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-44h9-p34h-2w4p
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-44h9-p34h-2w4p
 
 import (
 	"bytes"
@@ -31,8 +33,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/form"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/form"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 const ghsaImageTemplate = `{"pages":{"1":{"content":{"textfield":[{"id":"name","pos":[10,10],"width":100,"font":{"name":"Helvetica","size":12}}]}}}}`

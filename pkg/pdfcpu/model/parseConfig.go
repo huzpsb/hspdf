@@ -17,6 +17,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 import (
@@ -26,7 +28,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 	"go.yaml.in/yaml/v3"
 )
 

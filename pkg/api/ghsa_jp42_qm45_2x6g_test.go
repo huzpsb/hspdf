@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 import (
@@ -25,12 +27,12 @@ import (
 	"io"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 // Regression coverage for GHSA-jp42-qm45-2x6g: configured decoded-byte limit bypasses.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-jp42-qm45-2x6g
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-jp42-qm45-2x6g
 // Fixtures keep allocations modest while exercising the four reported failure cases.
 
 func ghsaJP42Stream(t *testing.T, dict string, data []byte) []byte {

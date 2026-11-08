@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package pdfcpu
 import (
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/internal/fallbackfont"
+	"github.com/huzpsb/hspdf/internal/fallbackfont"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 )
@@ -116,7 +116,7 @@ func TestVivoSubsetMissingRunes(t *testing.T) {
 
 // TestVivoSubsetRepeatability verifies deterministic output.
 func TestVivoSubsetRepeatability(t *testing.T) {
-	runes := []rune("pdfcpu2 你好")
+	runes := []rune("hspdf 你好")
 	a, err := buildVivoSubset(fallbackfont.Bytes(), runes)
 	if err != nil {
 		t.Fatal(err)

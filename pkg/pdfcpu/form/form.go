@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 // Package form reads, writes, fills, and manages PDF form fields.
 package form
 
@@ -26,13 +28,13 @@ import (
 	"strings"
 
 	"github.com/mattn/go-runewidth"
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/draw"
-	pdffont "github.com/huzpsb/pdfcpu2/pkg/pdfcpu/font"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/primitives"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/draw"
+	pdffont "github.com/huzpsb/hspdf/pkg/pdfcpu/font"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/primitives"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // FieldType represents a form field type.

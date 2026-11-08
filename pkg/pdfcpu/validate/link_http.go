@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package validate
 
 import (
@@ -27,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/internal/netutil"
+	"github.com/huzpsb/hspdf/internal/netutil"
 )
 
 const (

@@ -15,6 +15,8 @@
 //go:build ignore
 // +build ignore
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package main
 
 import (
@@ -238,7 +240,7 @@ const header = `// Copyright 2019 The pdfcpu Authors.
 package metrics
 
 import (	
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 `
 

@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model_test
 
 // GHSA-pr6x-vqwr-4hj2: streams decoded while reading must be charged to the document's decoded-stream budget, each
 // aliased xref entry separately, except where the decoded content is the raw stream data.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-pr6x-vqwr-4hj2
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-pr6x-vqwr-4hj2
 
 import (
 	"bytes"
@@ -26,10 +28,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // ghsaPr6xStreamPDF writes a one-page document whose objects 4.. all refer to one stream object with the given filters.

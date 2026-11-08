@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package webui provides the in browser engine bindings for the pdfcpu2
+// Package webui provides the in browser engine bindings for the hspdf
 // web UI. All operations are pure functions on byte slices so that they
 // compile unchanged for native tests (go test) and for GOOS=js GOARCH=wasm.
 package webui
@@ -30,11 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/pkg/api"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
-	"github.com/huzpsb/pdfcpu2/pkg/render"
+	"github.com/huzpsb/hspdf/pkg/api"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/render"
 )
 
 // NamedBytes is one output file.

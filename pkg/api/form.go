@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 import (
@@ -29,13 +31,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/create"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/fault"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/form"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/sanitize"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/create"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/fault"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/form"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/sanitize"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // FormFields returns all form fields of rs and supports cancellation.

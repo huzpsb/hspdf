@@ -1,4 +1,4 @@
-module github.com/huzpsb/pdfcpu2
+module github.com/huzpsb/hspdf
 
 go 1.26.0
 

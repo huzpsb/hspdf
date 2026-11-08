@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 // GHSA-prvw-v9vv-6966: image extraction must return an error for a missing BitsPerComponent instead of panicking.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-prvw-v9vv-6966
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-prvw-v9vv-6966
 
 import (
 	"bytes"
@@ -25,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 func ghsaPrvwImageWithoutBitsPerComponentPDF() []byte {

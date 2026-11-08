@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 package cli
 
-import "github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+import "github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 
 // ObfuscateCommand creates a new command to destroy the text extraction
 // mappings of all embedded fonts of inFile by garbage filling the cmap

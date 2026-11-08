@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package cli
 
 import (
@@ -30,12 +32,12 @@ import (
 
 	"encoding/json"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/api"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/api"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func validationInputLabel(fn string) string {
@@ -706,7 +708,7 @@ func jsonInfoOutput(c context.Context, infos []*pdfcpu.PDFInfo) ([]string, error
 		Header pdfcpu.Header     `json:"header"`
 		Infos  []*pdfcpu.PDFInfo `json:"infos"`
 	}{
-		Header: pdfcpu.Header{Version: "pdfcpu " + model.VersionStr, Creation: time.Now().Format("2006-01-02 15:04:05 MST")},
+		Header: pdfcpu.Header{Version: "hspdf " + model.VersionStr, Creation: time.Now().Format("2006-01-02 15:04:05 MST")},
 		Infos:  infos,
 	}
 

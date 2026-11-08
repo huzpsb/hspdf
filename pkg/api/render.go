@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,12 +26,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/fault"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/sanitize"
-	"github.com/huzpsb/pdfcpu2/pkg/render"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/fault"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/sanitize"
+	"github.com/huzpsb/hspdf/pkg/render"
 )
 
 // RenderPages renders selected pages of rs and digests every result.

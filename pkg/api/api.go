@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 // Package api lets you integrate pdfcpu's operations into your Go backend.
 //
 // There are two api layers supporting all pdfcpu operations:
@@ -42,12 +44,12 @@ import (
 	"os"
 	"sync"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/fault"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/validate"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/fault"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/validate"
 )
 
 func logDisclaimerPDF20() {
@@ -58,7 +60,7 @@ func logDisclaimerPDF20() {
 * At the moment pdfcpu ships with basic PDF 2.0 support.            *
 * Please let us know which feature you would like to see supported, *
 * provide a sample PDF file and create an issue:                    *
-* https://github.com/huzpsb/pdfcpu2/issues/new/choose                *
+* https://github.com/huzpsb/hspdf/issues/new/choose                *
 * Thank you for using pdfcpu <3                                     *
 *********************************************************************`
 

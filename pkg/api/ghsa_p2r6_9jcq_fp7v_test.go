@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 // GHSA-p2r6-9jcq-fp7v: splitting along bookmarks must check a bookmark's page span against the page count before
 // listing its pages. Otherwise an outline destination with a huge page number makes split allocate one slice entry per
 // page number, or panic.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-p2r6-9jcq-fp7v
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-p2r6-9jcq-fp7v
 
 import (
 	"bytes"
@@ -31,8 +33,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 const ghsaP2r6AllocLimit = 8 << 20

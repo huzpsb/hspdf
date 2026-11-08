@@ -1,7 +1,7 @@
 //go:build js && wasm
 
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command webui builds the pdfcpu2 web UI engine module (app.wasm).
+// Command webui builds the hspdf web UI engine module (app.wasm).
 //
 // Build:
 //
@@ -24,7 +24,7 @@ limitations under the License.
 package main
 
 import (
-	"github.com/huzpsb/pdfcpu2/webui"
+	"github.com/huzpsb/hspdf/webui"
 )
 
 func main() {

@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 import (
@@ -25,10 +27,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/fault"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/fault"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 // ViewerPreferences returns rs's viewer preferences and supports cancellation.
@@ -74,7 +76,7 @@ func marshalViewerPreferencesJSON(c context.Context, vp *model.ViewerPreferences
 		Header     pdfcpu.Header            `json:"header"`
 		ViewerPref *model.ViewerPreferences `json:"viewerPreferences"`
 	}{
-		Header:     pdfcpu.Header{Version: "pdfcpu " + model.VersionStr, Creation: time.Now().Format("2006-01-02 15:04:05 MST")},
+		Header:     pdfcpu.Header{Version: "hspdf " + model.VersionStr, Creation: time.Now().Format("2006-01-02 15:04:05 MST")},
 		ViewerPref: vp,
 	}
 

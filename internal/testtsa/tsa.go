@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package testtsa provides a minimal RFC 3161 timestamp authority for tests.
-// Its tokens satisfy the structural requirements of pdfcpu2's document
+// Its tokens satisfy the structural requirements of hspdf's document
 // timestamp validator: a single signer, TSTInfo content, signed attributes
 // incl. ESSSigningCertificateV2 and an exclusive critical timestamping EKU.
 package testtsa
@@ -39,7 +39,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/pkcs7"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/pkcs7"
 )
 
 var (
@@ -151,7 +151,7 @@ func New(genTime time.Time) (*TSA, error) {
 	now := time.Now()
 	root, err := createCertificate(&x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "pdfcpu2 test TSA Root", Organization: []string{"pdfcpu2"}},
+		Subject:               pkix.Name{CommonName: "hspdf test TSA Root", Organization: []string{"hspdf"}},
 		NotBefore:             now.Add(-time.Hour),
 		NotAfter:              now.Add(24 * time.Hour),
 		IsCA:                  true,
@@ -170,7 +170,7 @@ func New(genTime time.Time) (*TSA, error) {
 	}
 	leaf, err := createCertificate(&x509.Certificate{
 		SerialNumber:          big.NewInt(2),
-		Subject:               pkix.Name{CommonName: "pdfcpu2 test TSA", Organization: []string{"pdfcpu2"}},
+		Subject:               pkix.Name{CommonName: "hspdf test TSA", Organization: []string{"hspdf"}},
 		NotBefore:             now.Add(-time.Hour),
 		NotAfter:              now.Add(24 * time.Hour),
 		IsCA:                  false,
@@ -261,8 +261,8 @@ func newCertificateAndCRL(key *ecdsa.PrivateKey, crlURL string) (*x509.Certifica
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName:   "pdfcpu2 test TSA",
-			Organization: []string{"pdfcpu2"},
+			CommonName:   "hspdf test TSA",
+			Organization: []string{"hspdf"},
 		},
 		NotBefore: now.Add(-time.Hour),
 		NotAfter:  now.Add(24 * time.Hour),

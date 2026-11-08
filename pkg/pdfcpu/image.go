@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 import (
@@ -24,11 +26,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/draw"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/draw"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func imageBooleanEntry(xRefTable *model.XRefTable, sd *types.StreamDict, key string, objNr int) (bool, error) {

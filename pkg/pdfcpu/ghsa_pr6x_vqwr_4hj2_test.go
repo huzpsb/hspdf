@@ -14,13 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 // GHSA-pr6x-vqwr-4hj2: encoded stream data must count toward the per-read budget, a stream length beyond the end of the
 // input must not size the buffer, object-stream indexes must not be shared, and lazy object-stream decodes must use a
 // separate cumulative budget from the XRefTable budget. Otherwise shared or nested streams can make a small file hold
 // many independent buffers. Other decoded buffers are covered in package model.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-pr6x-vqwr-4hj2
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-pr6x-vqwr-4hj2
 
 import (
 	"bytes"
@@ -34,9 +36,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 const (

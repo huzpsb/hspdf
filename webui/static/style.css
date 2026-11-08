@@ -1,4 +1,4 @@
-/* pdfcpu2 webui — quiet, local-first document workspace. No external assets. */
+/* hspdf webui — quiet, local-first document workspace. No external assets. */
 :root {
     color-scheme: light;
     --bg: #f4f5f2;
@@ -166,9 +166,7 @@ svg {
     letter-spacing: -.6px;
 }
 
-.brand-word span {
-    color: var(--accent);
-}
+
 
 .topbar-divider {
     width: 1px;
@@ -2001,6 +1999,18 @@ dialog.dialog::backdrop {
 
 .workspace-footer span:first-child {
     font-weight: 650;
+}
+.footer-legal {
+    white-space: nowrap;
+}
+
+.footer-legal a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.footer-legal a:hover {
+    text-decoration: underline;
 }
 
 @media (max-width: 1180px) {

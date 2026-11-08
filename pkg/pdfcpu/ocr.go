@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ import (
 
 	_ "github.com/hhrutter/tiff" // CMYK rendering via TIFF
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/ocr"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/ocr"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // OCR overlay: recognize text in every image XObject drawn on a page and
@@ -54,7 +54,7 @@ import (
 //     for selection rectangles.
 
 const (
-	ocrMarkerKey  = "Pdfcpu2Ocr"
+	ocrMarkerKey  = "HspdfOcr"
 	ocrFontPrefix = "P2OcrFont" // resource name prefix
 	ocrMinImgDim  = 16          // skip tiny decorations
 )
@@ -76,42 +76,150 @@ type ocrRun struct {
 // given pages (all pages if pageNrs is empty) and injects an invisible text
 // layer. Returns the number of images processed (already-marked images are
 // not re-processed and not counted).
+//
+// It is PlanOCR + in-process recognition + ApplyLines; hosts that fan the
+// recognition stage out (e.g. the webui across workers) use those directly.
 func OCRPages(c context.Context, ctx *model.Context, pageNrs []int) (int, error) {
+	job, err := PlanOCR(c, ctx, pageNrs)
+	if err != nil {
+		return job.Processed(), err
+	}
+	lines := make([][]ocr.Line, len(job.Images))
+	for i, im := range job.Images {
+		ls, err := ocr.RecognizeRGB(im.RGB, im.W, im.H)
+		if err != nil {
+			if log.InfoEnabled() {
+				log.Info.Printf("ocr: image obj#%d skipped: %v\n", im.ObjNr, err)
+			}
+			continue
+		}
+		lines[i] = ls
+	}
+	return job.ApplyLines(c, lines)
+}
+
+// OCRImage is one image extracted for OCR, already decoded to packed RGB8.
+type OCRImage struct {
+	PageNr int
+	ObjNr  int
+	W, H   int
+	RGB    []uint8
+}
+
+// ocrPagePlan holds one page's state between the plan and apply phases.
+type ocrPagePlan struct {
+	pageDict types.Dict
+	leftover affine
+	byObj    map[int][]ocrPlacement // objNr -> placements (OCR once, place per occurrence)
+	order    []int                  // objNrs in first-appearance order
+	imgIdx   []int                  // indices into OCRJob.Images, in order
+	marked   int                    // images marked on this page (incl. failed extractions)
+}
+
+// OCRJob is a planned OCR run: every un-OCR'd image on the selected pages
+// has been extracted to RGB and marked. Recognition is delegated to the
+// caller; line results are handed back via ApplyLines. Marks only persist
+// if the job is applied and the context written.
+type OCRJob struct {
+	ctx    *model.Context
+	order  []int // planned page numbers
+	pages  map[int]*ocrPagePlan
+	Images []OCRImage
+}
+
+// Context returns the parsed context the job is working on.
+func (job *OCRJob) Context() *model.Context { return job.ctx }
+
+// Processed returns the number of images the planner marked.
+func (job *OCRJob) Processed() int {
+	n := 0
+	for _, pageNr := range job.order {
+		n += job.pages[pageNr].marked
+	}
+	return n
+}
+
+// PlanOCR scans pageNrs (all pages if empty) for image XObjects, extracts
+// each un-OCR'd one to RGB and marks it. Recognition results come back via
+// ApplyLines; lines[i] corresponds to job.Images[i] (missing/empty entries
+// simply contribute no text).
+func PlanOCR(c context.Context, ctx *model.Context, pageNrs []int) (*OCRJob, error) {
+	job := &OCRJob{ctx: ctx, pages: map[int]*ocrPagePlan{}}
 	if err := contextutil.Check(c); err != nil {
-		return 0, err
+		return job, err
 	}
 	if ctx == nil || ctx.XRefTable == nil {
-		return 0, fmt.Errorf("ocr: missing context")
+		return job, fmt.Errorf("ocr: missing context")
 	}
 	if len(pageNrs) == 0 {
 		for i := 1; i <= ctx.PageCount; i++ {
 			pageNrs = append(pageNrs, i)
 		}
 	}
-	processed := 0
 	for _, pageNr := range pageNrs {
+		if err := contextutil.Check(c); err != nil {
+			return job, err
+		}
+		if err := planOCRPage(c, ctx, job, pageNr); err != nil {
+			return job, fmt.Errorf("page %d: %w", pageNr, err)
+		}
+	}
+	return job, nil
+}
+
+// ApplyLines maps recognized lines into page space, builds and appends the
+// invisible text layer of every planned page. Returns the number of images
+// processed.
+func (job *OCRJob) ApplyLines(c context.Context, lines [][]ocr.Line) (int, error) {
+	processed := 0
+	for _, pageNr := range job.order {
 		if err := contextutil.Check(c); err != nil {
 			return processed, err
 		}
-		n, err := ocrPage(c, ctx, pageNr)
-		if err != nil {
-			return processed, fmt.Errorf("page %d: %w", pageNr, err)
+		pl := job.pages[pageNr]
+		processed += pl.marked
+		var runs []ocrRun
+		for _, idx := range pl.imgIdx {
+			im := job.Images[idx]
+			var ls []ocr.Line
+			if idx < len(lines) {
+				ls = lines[idx]
+			}
+			if len(ls) == 0 {
+				continue
+			}
+			for _, placement := range pl.byObj[im.ObjNr] {
+				for _, l := range ls {
+					if r := ocrMapRun(l, placement.ctm, im.W, im.H); r != nil {
+						runs = append(runs, *r)
+					}
+				}
+			}
 		}
-		processed += n
+		if len(runs) == 0 {
+			continue
+		}
+		contentOps := ocrBuildContent(c, job.ctx, pl.pageDict, runs, pl.leftover)
+		if contentOps == "" {
+			continue
+		}
+		if err := job.ctx.XRefTable.AppendContent(pl.pageDict, []byte(contentOps)); err != nil {
+			return processed, fmt.Errorf("page %d: append content: %w", pageNr, err)
+		}
 	}
 	return processed, nil
 }
 
-func ocrPage(c context.Context, ctx *model.Context, pageNr int) (int, error) {
+func planOCRPage(c context.Context, ctx *model.Context, job *OCRJob, pageNr int) error {
 	pageDict, _, inhPAttrs, err := ctx.XRefTable.PageDict(c, pageNr, true)
 	if err != nil {
-		return 0, fmt.Errorf("page dict: %w", err)
+		return fmt.Errorf("page dict: %w", err)
 	}
 	res := pageResources(ctx, pageDict, inhPAttrs)
 
 	content, err := pageContentBytes(c, ctx, pageDict)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	var placements []ocrPlacement
 	leftover := identityAffine()
@@ -119,11 +227,11 @@ func ocrPage(c context.Context, ctx *model.Context, pageNr int) (int, error) {
 		placements, leftover, err = scanImagePlacements(c, ctx, content, res,
 			identityAffine(), 0, nil)
 		if err != nil {
-			return 0, err
+			return err
 		}
 	}
 	if len(placements) == 0 {
-		return 0, nil
+		return nil
 	}
 
 	// collect placements per image (OCR once, place for every occurrence)
@@ -135,48 +243,28 @@ func ocrPage(c context.Context, ctx *model.Context, pageNr int) (int, error) {
 		}
 		byObj[pl.objNr] = append(byObj[pl.objNr], pl)
 	}
+	pl := &ocrPagePlan{pageDict: pageDict, leftover: leftover, byObj: byObj, order: order}
+	job.order = append(job.order, pageNr)
+	job.pages[pageNr] = pl
 
-	var runs []ocrRun
-	processed := 0
 	for _, objNr := range order {
-		pls := byObj[objNr]
-		sd := pls[0].sd
+		sd := byObj[objNr][0].sd
 		if _, found := sd.Find(ocrMarkerKey); found {
 			continue // already OCR'd by an earlier run
 		}
 		sd.Dict.Insert(ocrMarkerKey, types.Boolean(true)) // mark even on empty results
-		processed++
-		w, h, lines, err := ocrImage(c, ctx, sd, objNr)
+		pl.marked++
+		w, h, rgb, err := extractOCRImage(c, ctx, sd, objNr)
 		if err != nil {
 			if log.InfoEnabled() {
 				log.Info.Printf("ocr: image obj#%d skipped: %v\n", objNr, err)
 			}
 			continue
 		}
-		if len(lines) == 0 {
-			continue
-		}
-		for _, pl := range pls {
-			for _, l := range lines {
-				r := ocrMapRun(l, pl.ctm, w, h)
-				if r != nil {
-					runs = append(runs, *r)
-				}
-			}
-		}
+		pl.imgIdx = append(pl.imgIdx, len(job.Images))
+		job.Images = append(job.Images, OCRImage{PageNr: pageNr, ObjNr: objNr, W: w, H: h, RGB: rgb})
 	}
-	if len(runs) == 0 {
-		return processed, nil
-	}
-
-	contentOps := ocrBuildContent(c, ctx, pageDict, runs, leftover)
-	if contentOps == "" {
-		return processed, nil
-	}
-	if err := ctx.XRefTable.AppendContent(pageDict, []byte(contentOps)); err != nil {
-		return processed, fmt.Errorf("append content: %w", err)
-	}
-	return processed, nil
+	return nil
 }
 
 // ---------------------------------------------------------------- scanning
@@ -366,8 +454,8 @@ func ocrHandleXObject(c context.Context, ctx *model.Context, o types.Object, ctm
 
 // ---------------------------------------------------------------- OCR + mapping
 
-func ocrImage(c context.Context, ctx *model.Context, sd *types.StreamDict,
-	objNr int) (int, int, []ocr.Line, error) {
+func extractOCRImage(c context.Context, ctx *model.Context, sd *types.StreamDict,
+	objNr int) (int, int, []uint8, error) {
 	w := sd.IntEntry("Width")
 	h := sd.IntEntry("Height")
 	if w == nil || h == nil {
@@ -384,11 +472,7 @@ func ocrImage(c context.Context, ctx *model.Context, sd *types.StreamDict,
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("decode %s: %w", im.FileType, err)
 	}
-	lines, err := ocr.Recognize(decoded)
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return *w, *h, lines, nil
+	return *w, *h, ocr.ImageToRGB(decoded), nil
 }
 
 // ocrMapRun maps a recognized quad (image pixels, y down) into page space

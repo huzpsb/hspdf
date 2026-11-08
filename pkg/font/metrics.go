@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package font
 
 import (
@@ -30,10 +32,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/internal/corefont/metrics"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/sanitize"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/internal/corefont/metrics"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/sanitize"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // TTFLight represents a TrueType font w/o font file.
@@ -272,7 +274,7 @@ func (fd TTFLight) unicodeRangeBits(id string) []int {
 	// Returns a slice of relevant unicodeRangeBits.
 	//
 	// This mapping is incomplete as we only cover unicode blocks of the most popular scripts.
-	// Please go to https://github.com/huzpsb/pdfcpu2/issues/new/choose for an extension request.
+	// Please go to https://github.com/huzpsb/hspdf/issues/new/choose for an extension request.
 	//
 	//  0 Basic Latin						0000-007F
 	//  1 Latin-1 Supplement				0080-00FF

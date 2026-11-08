@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 // Package format provides locale-independent PDF number formatting.
 package format
 
@@ -22,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 // Text returns a string with resolved place holders for pageNr, pageCount, timestamp or pdfcpu version.

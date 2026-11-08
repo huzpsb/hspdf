@@ -1,4 +1,4 @@
-/* pdfcpu2 webui worker: loads app.wasm and exposes the engine via RPC. */
+/* hspdf webui worker: loads app.wasm and exposes the engine via RPC. */
 'use strict';
 
 importScripts('wasm_exec.js');
@@ -51,11 +51,11 @@ async function boot() {
         );
 
         const deadline = Date.now() + 120000;
-        while (!(self.pdfcpu2 && self.pdfcpu2.version)) {
+        while (!(self.hspdf && self.hspdf.version)) {
             if (Date.now() > deadline) throw new Error('engine did not initialize in time');
             await new Promise((r) => setTimeout(r, 50));
         }
-        api = self.pdfcpu2;
+        api = self.hspdf;
         let version = '';
         try {
             version = api.version().version;

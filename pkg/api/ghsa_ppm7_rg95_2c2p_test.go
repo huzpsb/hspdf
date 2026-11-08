@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 // GHSA-ppm7-rg95-2c2p: encryption must encrypt strings of compressed objects instead of copying them in plaintext.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-ppm7-rg95-2c2p
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-ppm7-rg95-2c2p
 
 import (
 	"bytes"
@@ -26,7 +28,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 const ghsaPpm7Marker = "ghsa-ppm7-plaintext-marker"

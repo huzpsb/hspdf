@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 // GHSA-gj7c-wpph-xx35: a stream /Filter or /DecodeParms referring to itself must fail instead of overflowing the stack.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-gj7c-wpph-xx35
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-gj7c-wpph-xx35
 
 import (
 	"bytes"
@@ -28,8 +30,8 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func selfReferencingStreamPDF(entry string) []byte {

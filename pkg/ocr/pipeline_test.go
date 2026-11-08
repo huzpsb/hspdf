@@ -1,4 +1,4 @@
-// Copyright 2026 The pdfcpu Authors.
+// Copyright 2026 huzpsb.
 // Use of this source code is governed by an Apache-2.0 license that can be found in the LICENSE file.
 
 package ocr
@@ -22,7 +22,7 @@ func loadChl(t *testing.T) []uint8 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return imageToRGB(img)
+	return ImageToRGB(img)
 }
 
 // TestChlGolden checks the full pipeline against the reference engine output

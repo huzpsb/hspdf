@@ -1,22 +1,24 @@
-# pdfcpu2
+# hspdf
 
-pdfcpu2 是 pdfcpu 的一个分支，在保留原有 PDF 处理命令的基础上，增加了离线 OCR 和文本提取功能。可编译为单个静态二进制文件，不依赖 Python、cgo 或外部服务。
+> **曾用名 `pdfcpu2`。** 应 [pdfcpu2#1](https://github.com/huzpsb/pdfcpu2/issues/1) 的要求，项目已更名为 `hspdf`，背景见该 issue。
+
+hspdf 是一个功能更多的 [pdfcpu](https://github.com/pdfcpu/pdfcpu) fork——新增离线 OCR、与 PDFBox 兼容的文本提取等能力，同时保留原有全部 PDF 处理命令。可编译为单个静态二进制文件，不依赖 Python、cgo 或外部服务。
 
 ```sh
-pdfcpu2 ocr scan.pdf scan_ocr.pdf && pdfcpu2 extract -m text scan_ocr.pdf -
+hspdf ocr scan.pdf scan_ocr.pdf && hspdf extract -m text scan_ocr.pdf -
 ```
 
 这条命令会先为扫描版 PDF 添加可搜索的文本层，再提取其中的文本。这套流程可用于 RAG 数据导入、Agent 工具和批量文档处理。
 
-| `pdfcpu2 extract -m text`：从 PDF 中提取文本 | `pdfcpu2 ocr`：为扫描件添加不可见、可选择的文本层 |
+| `hspdf extract -m text`：从 PDF 中提取文本 | `hspdf ocr`：为扫描件添加不可见、可选择的文本层 |
 | --- | --- |
 | ![文本提取示例](media/extract.png) | ![OCR 文本层示例](media/ocr.png) |
 
 ## 文档
 
-[项目 Wiki](https://github.com/huzpsb/pdfcpu2/wiki) 包含约 60 页文档，涵盖命令行用法、Go API 示例和入门指南。
+[项目 Wiki](https://github.com/huzpsb/hspdf/wiki) 包含约 60 页文档，涵盖命令行用法、Go API 示例和入门指南。
 
-不想安装？还有**浏览器版**：<https://huzpsb.github.io/pdfcpu2/> —— 同一引擎编译为 WebAssembly，所有处理都在页面内本地完成，详见 [Web UI](https://github.com/huzpsb/pdfcpu2/wiki/Web-UI) 文档页。
+不想安装？还有**浏览器版**：<https://huzpsb.github.io/hspdf/> —— 同一引擎编译为 WebAssembly，所有处理都在页面内本地完成，详见 [Web UI](https://github.com/huzpsb/hspdf/wiki/Web-UI) 文档页。
 
 ## 动机
 
@@ -25,7 +27,7 @@ pdfcpu 的维护者 Horst Rutter 是 PDF Association 的成员。我敬佩他对
 ## 功能
 
 - **单个二进制文件。** PP-OCRv6 检测和识别模型（约 6 MB）已嵌入可执行文件。OCR 可完全离线运行，无需 API 密钥或令牌，没有调用频率限制，数据也不会离开本机。支持 Windows、Linux 和 macOS 的 amd64、arm64 版本。
-- **可在浏览器中运行。** 同一引擎编译为 WebAssembly，驱动本地优先的网页应用 <https://huzpsb.github.io/pdfcpu2/> —— 加密／解密、OCR、固化、混淆、优化、文本提取、水印、拆分／合并、图片转 PDF、附件、签名与批处理全部在页面内完成，任何文件都不会被上传。
+- **可在浏览器中运行。** 同一引擎编译为 WebAssembly，驱动本地优先的网页应用 <https://huzpsb.github.io/hspdf/> —— 加密／解密、OCR、固化、混淆、优化、文本提取、水印、拆分／合并、图片转 PDF、附件、签名与批处理全部在页面内完成，任何文件都不会被上传。
 - **纯 Go OCR 推理。** 模型基于纯 Go 引擎运行，使用 fp32 标量计算和 goroutine 并行，不需要 cgo、ONNX Runtime 或 Python。
 - **OCR 基准测试。** PaddlePaddle 公布的基准测试给出了 PP-OCRv6 与数个通用 VLM 的以下结果：
 
@@ -52,36 +54,36 @@ pdfcpu 的维护者 Horst Rutter 是 PDF Association 的成员。我敬佩他对
 
 | 功能 | 命令 | 状态 |
 | --- | --- | --- |
-| 纯文本提取（与 PDFBox 兼容） | `pdfcpu2 extract -m text` | 可用 |
-| 为扫描版 PDF 添加不可见的 OCR 文本层 | `pdfcpu2 ocr` | 可用 |
-| 页面渲染／栅格化 | `pdfcpu2 render` | 可用 |
-| 文本替换（内嵌 vivo Sans 子集） | `pdfcpu2 replace` | 可用 |
-| 内容固化（以渲染图像替换页面内容） | `pdfcpu2 solidify` | 可用 |
-| 字形混淆（垃圾填充字体 cmap 与 ToUnicode CMap） | `pdfcpu2 obfuscate` | 可用 |
+| 纯文本提取（与 PDFBox 兼容） | `hspdf extract -m text` | 可用 |
+| 为扫描版 PDF 添加不可见的 OCR 文本层 | `hspdf ocr` | 可用 |
+| 页面渲染／栅格化 | `hspdf render` | 可用 |
+| 文本替换（内嵌 vivo Sans 子集） | `hspdf replace` | 可用 |
+| 内容固化（以渲染图像替换页面内容） | `hspdf solidify` | 可用 |
+| 字形混淆（垃圾填充字体 cmap 与 ToUnicode CMap） | `hspdf obfuscate` | 可用 |
 
 ```sh
 # 文本提取
-pdfcpu2 extract -m text in.pdf out.txt          # 整个文档
-pdfcpu2 extract -m text -p 1-3 in.pdf -         # 将第 1—3 页输出到标准输出
+hspdf extract -m text in.pdf out.txt          # 整个文档
+hspdf extract -m text -p 1-3 in.pdf -         # 将第 1—3 页输出到标准输出
 
 # OCR：让扫描件可搜索、可提取文本
-pdfcpu2 ocr scan.pdf scan_ocr.pdf               # 所有页面
-pdfcpu2 ocr scan.pdf scan_ocr.pdf -pages 1-10   # 指定页面
+hspdf ocr scan.pdf scan_ocr.pdf               # 所有页面
+hspdf ocr scan.pdf scan_ocr.pdf -pages 1-10   # 指定页面
 
 # 渲染：每页输出一张图片
-pdfcpu2 render in.pdf outDir                    # PNG，150 dpi
-pdfcpu2 render -m jpg -q 90 --dpi 300 in.pdf outDir
+hspdf render in.pdf outDir                    # PNG，150 dpi
+hspdf render -m jpg -q 90 --dpi 300 in.pdf outDir
 
 # 固化：栅格化页面并以其图像替换原内容（防复制／防修改）
-pdfcpu2 solidify in.pdf out.pdf                 # 无损 PNG 图像
-pdfcpu2 solidify -m jpg --dpi 200 in.pdf out.pdf
+hspdf solidify in.pdf out.pdf                 # 无损 PNG 图像
+hspdf solidify -m jpg --dpi 200 in.pdf out.pdf
 
 # 混淆：对内嵌 CID 字体的映射做垃圾填充（渲染不变，提取为乱码）
-pdfcpu2 obfuscate in.pdf out.pdf
+hspdf obfuscate in.pdf out.pdf
 
 # 文本替换：删除匹配原文，原位绘制替换文字
-pdfcpu2 replace -f "旧文字" -r "新文字" in.pdf out.pdf
-pdfcpu2 replace -f "DRAFT" in.pdf out.pdf       # 替换为空 = 仅删除
+hspdf replace -f "旧文字" -r "新文字" in.pdf out.pdf
+hspdf replace -f "DRAFT" in.pdf out.pdf       # 替换为空 = 仅删除
 ```
 
 Go API 示例：
@@ -116,29 +118,31 @@ n, err = api.ReplaceTextFile(ctx, "in.pdf", "out.pdf", "旧文字", "新文字",
 现有命令集仍然可用，包括验证、优化、合并、拆分与裁剪、页面和页面框、图章与水印、表单、加密、权限、签名、附件、PDF 创建、n-up 拼版、小册子和海报等。
 
 ```sh
-pdfcpu2 validate in.pdf
-pdfcpu2 merge out.pdf a.pdf b.pdf
-pdfcpu2 encrypt --opw owner --upw user in.pdf out.pdf   # AES-256
-pdfcpu2 stamp add "CONFIDENTIAL" "pos:tr, op:.6" in.pdf out.pdf
+hspdf validate in.pdf
+hspdf merge out.pdf a.pdf b.pdf
+hspdf encrypt --opw owner --upw user in.pdf out.pdf   # AES-256
+hspdf stamp add "CONFIDENTIAL" "pos:tr, op:.6" in.pdf out.pdf
 ```
 
 ## 安装
 
 ```sh
-go install github.com/huzpsb/pdfcpu2/cmd/pdfcpu2@latest
+go install github.com/huzpsb/hspdf/cmd/hspdf@latest
 # 或从源码目录构建：
-go mod vendor && go build ./cmd/pdfcpu2
+go mod vendor && go build ./cmd/hspdf
 ```
 
 作为库使用：
 
 ```sh
-go get github.com/huzpsb/pdfcpu2
+go get github.com/huzpsb/hspdf
 ```
 
 ## 与上游项目的关系
 
-pdfcpu2 是 pdfcpu 的硬分支，独立维护，采用 Apache 2.0 许可证，不保证跟随上游版本发布。欢迎提交 issue 和合理的功能需求。
+hspdf 是 pdfcpu 的硬分支，**fork 自 pdfcpu v0.16.4**，独立维护，采用 Apache 2.0 许可证，不保证跟随上游版本发布。欢迎提交 issue 和合理的功能需求。
+
+派生自上游的文件大多为本 fork 做过修改（模块路径、新增功能、同步的上游安全修复），每个被修改的文件都在原有 pdfcpu 版权头下方带有 `Modified by huzpsb for hspdf` 声明；本 fork 新增的文件版权归 huzpsb。
 
 现有行为和 API 约定在可行范围内保持兼容。新代码沿用现有包分层：`model` → `pkg/pdfcpu` → `pkg/api` → `pkg/cli`。
 
@@ -146,8 +150,8 @@ pdfcpu2 是 pdfcpu 的硬分支，独立维护，采用 Apache 2.0 许可证，�
 
 ## 许可证
 
-采用 Apache License 2.0，与上游一致（见 `LICENSE.txt`）。
+采用 Apache License 2.0，与上游一致（见 [`LICENSE.txt`](LICENSE.txt)）。网页版随附同一许可证文本（[`webui/static/LICENSE.txt`](webui/static/LICENSE.txt)），发布二进制的下载包中也包含 `LICENSE.txt`。
 
-本软件内嵌 **vivo Sans Light** 字体，作为渲染未内嵌字体 PDF 文本时的回退字体，并作为文本替换的字形来源。vivo Sans 由维沃移动通信有限公司依据《vivo Sans 字体知识产权许可协议》授权（见 `internal/fallbackfont/vivoSans-LICENSE.txt`）：须在本软件中特别注明使用了该字体；不得对其进行改编或二次开发，也不得单独对外分发该字体或其组件；字体副本中保留了版权声明与许可协议。使用 pdfcpu2 渲染文档时，输出图像仅享有该协议授予的使用 vivo Sans 创作作品的相关权利。
+本软件内嵌 **vivo Sans Light** 字体，作为渲染未内嵌字体 PDF 文本时的回退字体，并作为文本替换的字形来源。vivo Sans 由维沃移动通信有限公司依据《vivo Sans 字体知识产权许可协议》授权（见 `internal/fallbackfont/vivoSans-LICENSE.txt`）：须在本软件中特别注明使用了该字体；不得对其进行改编或二次开发，也不得单独对外分发该字体或其组件；字体副本中保留了版权声明与许可协议。使用 hspdf 渲染文档时，输出图像仅享有该协议授予的使用 vivo Sans 创作作品的相关权利。
 
 内嵌的 Adobe CID 到 Unicode 映射表派生自 Adobe 的 UCS2 CMap 资源（Adobe BSD 风格许可证；版权声明保留在生成文件的头部）。

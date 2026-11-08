@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 // Package sanitize validates and normalizes filesystem paths derived from PDF data.
 package sanitize
 
@@ -22,7 +24,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/huzpsb/pdfcpu2/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/log"
 )
 
 func logDebugError(s string, err error) error {

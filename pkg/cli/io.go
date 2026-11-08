@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 // Package cli provides pdfcpu command line processing.
 package cli
 
@@ -25,10 +27,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/internal/fileutil"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/internal/fileutil"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 type streamInOutFinalizer struct {

@@ -1,4 +1,7 @@
 /*
+
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 Package pdfcpu is a PDF processing library written in Go supporting encryption.
 It provides an API and a command line interface. Supported are all versions up to PDF 2.0 (ISO-32000-2:2020).
 

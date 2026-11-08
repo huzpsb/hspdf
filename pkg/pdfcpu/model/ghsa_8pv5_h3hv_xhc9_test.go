@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 // GHSA-8pv5-h3hv-xhc9: shared acyclic reference graphs must not make object comparison take exponential time.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-8pv5-h3hv-xhc9
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-8pv5-h3hv-xhc9
 
 import (
 	"bytes"
@@ -28,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	pdfcpuLog "github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	pdfcpuLog "github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func ghsa8pv5SharedChains(depth int, unequal bool) (*XRefTable, types.IndirectRef, types.IndirectRef) {

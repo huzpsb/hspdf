@@ -14,18 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package primitives
 
 // GHSA-cphg-88q6-whwh: the rows and columns of all tables in a create template share one bound, and positioning a cell
 // does not depend on its column, so a small template cannot make create render or allocate without limit.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-cphg-88q6-whwh
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-cphg-88q6-whwh
 
 import (
 	"math"
 	"testing"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func TestGHSA_cphg_88q6_whwh_TableLineBudget(t *testing.T) {

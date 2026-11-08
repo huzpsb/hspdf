@@ -14,16 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 // GHSA-prvw-v9vv-6966: image masks may omit BitsPerComponent and must default to one bit per component.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-prvw-v9vv-6966
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-prvw-v9vv-6966
 
 import (
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // TestGHSA_prvw_v9vv_6966_ImageMaskDefaultsBitsPerComponent verifies image masks use the implicit one-bit component

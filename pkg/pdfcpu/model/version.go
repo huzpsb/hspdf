@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 import (
@@ -21,8 +23,8 @@ import (
 	"fmt"
 )
 
-// VersionStr is the current pdfcpu version.
-var VersionStr = "v0.16.4"
+// VersionStr is the current hspdf version.
+var VersionStr = "v1.1.0"
 
 // Version is a type for the internal representation of PDF versions.
 type Version int

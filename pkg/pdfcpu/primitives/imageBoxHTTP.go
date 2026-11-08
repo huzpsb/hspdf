@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package primitives
 
 import (
@@ -24,7 +26,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/internal/netutil"
+	"github.com/huzpsb/hspdf/internal/netutil"
 )
 
 func imageBoxRemoteURL(s string) (*url.URL, bool, error) {

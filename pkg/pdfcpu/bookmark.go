@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 import (
@@ -26,11 +28,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/internal/inputlimit"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/color"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/internal/inputlimit"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/color"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 var (
@@ -98,7 +100,7 @@ type BookmarkTree struct {
 func header(xRefTable *model.XRefTable, source string) Header {
 	h := Header{}
 	h.Source = filepath.Base(source)
-	h.Version = "pdfcpu " + model.VersionStr
+	h.Version = "hspdf " + model.VersionStr
 	h.Creation = time.Now().Format("2006-01-02 15:04:05 MST")
 	h.ID = []string{}
 	h.Title = xRefTable.Title

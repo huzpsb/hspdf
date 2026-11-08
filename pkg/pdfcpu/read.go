@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 import (
@@ -34,14 +36,14 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/internal/streamlimit"
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/safemath"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/scan"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/internal/streamlimit"
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/safemath"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/scan"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 const (

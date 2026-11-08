@@ -14,17 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 // GHSA-7v74-phpq-xq6g: signatures in the current revision must be reported as current, not historical.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-7v74-phpq-xq6g
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-7v74-phpq-xq6g
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 // TestGHSA_7v74_phpq_xq6g_SignatureReaderRevisionReporting verifies production ordinals preserve current and historical

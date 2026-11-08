@@ -1,4 +1,4 @@
-// Copyright 2026 The pdfcpu Authors.
+// Copyright 2026 huzpsb.
 // Use of this source code is governed by an Apache-2.0 license that can be found in the LICENSE file.
 
 // Package ocr provides embedded OCR (PP-OCRv6 tiny, det+rec) for scanned PDFs.

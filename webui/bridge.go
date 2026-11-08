@@ -1,7 +1,7 @@
 //go:build js && wasm
 
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,16 +19,20 @@ limitations under the License.
 package webui
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall/js"
 
-	"github.com/huzpsb/pdfcpu2/pkg/api"
+	"github.com/huzpsb/hspdf/pkg/api"
+	"github.com/huzpsb/hspdf/pkg/ocr"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
 )
 
-// Run installs the pdfcpu2 engine bridge on the JS global object.
+// Run installs the hspdf engine bridge on the JS global object.
 //
 // Every function is synchronous and returns {ok:true, ...} or
 // {ok:false, error:"..."}; binary payloads are Uint8Arrays.
@@ -37,7 +41,7 @@ func Run() {
 	// its built-in stateless defaults before anything touches the fs.
 	api.DisableConfigDir()
 
-	if g := js.Global().Get("pdfcpu2"); !g.IsUndefined() && !g.IsNull() {
+	if g := js.Global().Get("hspdf"); !g.IsUndefined() && !g.IsNull() {
 		return // already installed
 	}
 
@@ -150,12 +154,135 @@ func Run() {
 		return finish(r, err)
 	})
 
-	js.Global().Set("pdfcpu2", obj)
+	// ---- OCR split: detection/recognition fan-out ----------------------
+	//
+	// The js/wasm runtime is single-threaded (Go has no wasm threads yet),
+	// so the UI orchestrates: detection runs here, recognition is fanned
+	// out over a small pool of extra engine workers via ocrRec, and the
+	// final text layer is assembled here. One active job at a time — a new
+	// ocrBegin replaces (and frees) the previous one.
+
+	var ocrState struct {
+		sync.Mutex
+		id  int64
+		job *pdfcpu.OCRJob
+	}
+
+	reg("ocrBegin", func(args []js.Value) any {
+		fail := func(err error) any { return map[string]any{"ok": false, "error": err.Error()} }
+		ctx, err := readContext(context.Background(), bytesArg(args, 0), defaultConf())
+		if err != nil {
+			return fail(err)
+		}
+		pageNrs, err := sortedPageNrs(context.Background(), ctx, paramsArg(args, 1).Pages())
+		if err != nil {
+			return fail(err)
+		}
+		job, err := pdfcpu.PlanOCR(context.Background(), ctx, pageNrs)
+		if err != nil {
+			return fail(err)
+		}
+		ocrState.Lock()
+		ocrState.id++
+		id := ocrState.id
+		ocrState.job = job
+		ocrState.Unlock()
+		images := make([]any, len(job.Images))
+		for i, im := range job.Images {
+			images[i] = map[string]any{
+				"i": i, "pageNr": im.PageNr, "objNr": im.ObjNr,
+				"w": im.W, "h": im.H, "rgb": jsBytes(im.RGB),
+			}
+		}
+		return map[string]any{
+			"ok": true, "jobId": id, "images": images,
+			"imagesProcessed": job.Processed(),
+		}
+	})
+
+	reg("ocrDet", func(args []js.Value) any {
+		lines, err := ocr.DetectRGB(bytesArg(args, 0), int(numArg(args, 1, 0)), int(numArg(args, 2, 0)))
+		if err != nil {
+			return map[string]any{"ok": false, "error": err.Error()}
+		}
+		boxes := make([]any, len(lines))
+		scores := make([]any, len(lines))
+		for i, l := range lines {
+			boxes[i] = boxToJS(l.Box)
+			scores[i] = l.DetScore
+		}
+		return map[string]any{"ok": true, "boxes": boxes, "scores": scores}
+	})
+
+	reg("ocrRec", func(args []js.Value) any {
+		lines, bad := linesFromJS(arg(args, 3))
+		if bad != "" {
+			return map[string]any{"ok": false, "error": bad}
+		}
+		ocr.RecognizeLinesRGB(bytesArg(args, 0), int(numArg(args, 1, 0)), int(numArg(args, 2, 0)), lines)
+		out := make([]any, len(lines))
+		for i, l := range lines {
+			out[i] = map[string]any{"box": boxToJS(l.Box), "text": l.Text}
+		}
+		return map[string]any{"ok": true, "lines": out}
+	})
+
+	reg("ocrEnd", func(args []js.Value) any {
+		fail := func(err error) any { return map[string]any{"ok": false, "error": err.Error()} }
+		id := int64(numArg(args, 0, 0))
+		ocrState.Lock()
+		job := ocrState.job
+		cur := ocrState.id
+		ocrState.job = nil
+		ocrState.Unlock()
+		if job == nil || id != cur {
+			return fail(fmt.Errorf("ocr job expired"))
+		}
+		res, _ := goValue(arg(args, 1)).([]any)
+		lines := make([][]ocr.Line, len(job.Images))
+		for i := 0; i < len(lines) && i < len(res); i++ {
+			items, ok := res[i].([]any)
+			if !ok {
+				continue
+			}
+			ls := make([]ocr.Line, 0, len(items))
+			for _, it := range items {
+				m, ok := it.(map[string]any)
+				if !ok {
+					continue
+				}
+				var l ocr.Line
+				l.Text, _ = m["text"].(string)
+				if b, ok := m["box"].([]any); ok && len(b) == 8 {
+					for k := 0; k < 8; k++ {
+						l.Box[k], _ = b[k].(float64)
+					}
+				}
+				ls = append(ls, l)
+			}
+			lines[i] = ls
+		}
+		n, err := job.ApplyLines(context.Background(), lines)
+		if err != nil {
+			return fail(err)
+		}
+		var buf bytes.Buffer
+		if err := api.WriteContext(context.Background(), job.Context(), &buf); err != nil {
+			return fail(err)
+		}
+		return finish(&Result{
+			Name:    "_ocr.pdf",
+			Data:    buf.Bytes(),
+			Details: newDetails("imagesProcessed", n),
+		}, nil)
+	})
+
+	js.Global().Set("hspdf", obj)
 }
 
 // Version returns the webui build identifier.
 func Version() string {
-	return fmt.Sprintf("pdfcpu2-wasm (%s)", runtime.Version())
+	return fmt.Sprintf("hspdf-wasm (%s)", runtime.Version())
 }
 
 // ---- result wrapping ----
@@ -395,4 +522,36 @@ func splitComma(s string) []string {
 		}
 	}
 	return out
+}
+
+// boxToJS serializes one detection quad (tl, tr, br, bl as x,y pairs).
+func boxToJS(b [8]float64) []any {
+	out := make([]any, 8)
+	for i, v := range b {
+		out[i] = v
+	}
+	return out
+}
+
+// linesFromJS parses boxes ([[x0,y0,...,x3,y3], ...]) into bare lines.
+func linesFromJS(v js.Value) ([]ocr.Line, string) {
+	arr, ok := goValue(v).([]any)
+	if !ok {
+		return nil, "boxes required"
+	}
+	lines := make([]ocr.Line, len(arr))
+	for i, it := range arr {
+		b, ok := it.([]any)
+		if !ok || len(b) != 8 {
+			return nil, "bad box"
+		}
+		for k := 0; k < 8; k++ {
+			f, ok := b[k].(float64)
+			if !ok {
+				return nil, "bad box"
+			}
+			lines[i].Box[k] = f
+		}
+	}
+	return lines, ""
 }

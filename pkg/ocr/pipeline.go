@@ -1,4 +1,4 @@
-// Copyright 2026 The pdfcpu Authors.
+// Copyright 2026 huzpsb.
 // Use of this source code is governed by an Apache-2.0 license that can be found in the LICENSE file.
 
 package ocr
@@ -55,17 +55,6 @@ func getPipeline() (*pipeline, error) {
 		}
 	})
 	return pipe, pipeErr
-}
-
-// RecognizeRGB runs the full det+rec pipeline on an RGB8 image.
-func RecognizeRGB(rgb []uint8, w, h int) ([]Line, error) {
-	p, err := getPipeline()
-	if err != nil {
-		return nil, err
-	}
-	lines := p.runDet(rgb, w, h)
-	p.runRec(rgb, w, h, lines)
-	return lines, nil
 }
 
 // ---------------------------------------------------------------- det

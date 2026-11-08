@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 import (
@@ -30,17 +32,17 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
-	"github.com/huzpsb/pdfcpu2/pkg/font"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/color"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/draw"
-	pdffont "github.com/huzpsb/pdfcpu2/pkg/pdfcpu/font"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/format"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/matrix"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/font"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/color"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/draw"
+	pdffont "github.com/huzpsb/hspdf/pkg/pdfcpu/font"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/format"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/matrix"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 const stampWithBBox = false

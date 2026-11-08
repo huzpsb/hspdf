@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 // GHSA-w2hj-54mc-76r4: overflowing xref stream /W widths must return an error instead of panicking.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-w2hj-54mc-76r4
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-w2hj-54mc-76r4
 
 import (
 	"fmt"
@@ -26,7 +28,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 func ghsaW2hjXRefStreamWidthOverflowPDF() []byte {

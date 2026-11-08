@@ -1,4 +1,4 @@
-// Copyright 2026 The pdfcpu Authors.
+// Copyright 2026 huzpsb.
 // Use of this source code is governed by an Apache-2.0 license that can be found in the LICENSE file.
 
 package ocr
@@ -16,12 +16,43 @@ func Recognize(img image.Image) ([]Line, error) {
 	if w <= 0 || h <= 0 {
 		return nil, fmt.Errorf("ocr: empty image")
 	}
-	rgb := imageToRGB(img)
-	return RecognizeRGB(rgb, w, h)
+	return RecognizeRGB(ImageToRGB(img), w, h)
 }
 
-// imageToRGB converts any image to tightly packed RGB8 (top-down).
-func imageToRGB(img image.Image) []uint8 {
+// DetectRGB runs only the detection stage and returns lines with boxes
+// filled in (Text empty). Splitting det from rec lets a host fan the
+// recognition stage out across processes (e.g. web workers): rec lines are
+// independent of each other, so any subset can be recognized separately.
+func DetectRGB(rgb []uint8, w, h int) ([]Line, error) {
+	p, err := getPipeline()
+	if err != nil {
+		return nil, err
+	}
+	return p.runDet(rgb, w, h), nil
+}
+
+// RecognizeLinesRGB runs only the recognition stage over lines previously
+// returned by DetectRGB, filling Text and RecScore in place.
+func RecognizeLinesRGB(rgb []uint8, w, h int, lines []Line) {
+	p, err := getPipeline()
+	if err != nil {
+		return
+	}
+	p.runRec(rgb, w, h, lines)
+}
+
+// RecognizeRGB runs the full det+rec pipeline on an RGB8 image.
+func RecognizeRGB(rgb []uint8, w, h int) ([]Line, error) {
+	lines, err := DetectRGB(rgb, w, h)
+	if err != nil {
+		return nil, err
+	}
+	RecognizeLinesRGB(rgb, w, h, lines)
+	return lines, nil
+}
+
+// ImageToRGB converts any image to tightly packed RGB8 (top-down).
+func ImageToRGB(img image.Image) []uint8 {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))

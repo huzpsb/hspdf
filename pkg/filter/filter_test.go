@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package filter_test
 
 import (
@@ -25,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/filter"
 )
 
 func zlibEncoded(t *testing.T, s string) *bytes.Buffer {

@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 import (
@@ -21,9 +23,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/color"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/draw"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/color"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/draw"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // BookletType identifies a booklet layout strategy.

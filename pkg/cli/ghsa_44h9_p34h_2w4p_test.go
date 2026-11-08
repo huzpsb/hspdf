@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package cli
 
 // GHSA-44h9-p34h-2w4p: preserve local-image CLI workflows without changing the caller's API configuration.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-44h9-p34h-2w4p
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-44h9-p34h-2w4p
 
 import (
 	"bytes"
@@ -28,8 +30,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/api"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/api"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 func ghsaCLIWrite(t *testing.T, name string, data []byte) {

@@ -1,11 +1,11 @@
-/* pdfcpu2 webui — i18n dictionaries (en / zh) */
+/* hspdf webui — i18n dictionaries (en / zh) */
 
 const I18N = {
 
     en: {
-        appTitle: "pdfcpu2 — local PDF workspace",
+        appTitle: "hspdf — local PDF workspace",
         workspace: "PDF workspace",
-        starEyebrow: "ENJOYING PDFCPU2?",
+        starEyebrow: "ENJOYING HSPDF?",
         starMessage: "If this local PDF workspace is useful to you, a star helps others discover the project and supports its development.",
         starLater: "Maybe later",
         starNote: "Free & open source · no account needed to use the app",
@@ -40,6 +40,7 @@ const I18N = {
         downloadAll: "Download all",
         busyHint: "Keep this tab open",
         footerNote: "Fast, private document tools. No uploads. No accounts.",
+        basedOn: "based on",
         preferences: "PREFERENCES",
         prefsAutoDlHint: "Save each result as soon as it is ready",
         prefsTsa: "Timestamp service (TSA)",
@@ -87,6 +88,7 @@ const I18N = {
         engineFailed: "Engine failed to load",
         run: "Run",
         running: "Working…",
+        ocrBusy: (i, n, lines) => `OCR — page ${i}/${n}` + (lines ? ` — ${lines} text lines…` : '…'),
         done: "Done",
         failed: "Failed",
         download: "Download",
@@ -351,9 +353,9 @@ const I18N = {
     },
 
     zh: {
-        appTitle: "pdfcpu2 — 本地 PDF 工作台",
+        appTitle: "hspdf — 本地 PDF 工作台",
         workspace: "PDF 工作台",
-        starEyebrow: "觉得 PDFCPU2 好用吗？",
+        starEyebrow: "觉得 HSPDF 好用吗？",
         starMessage: "如果这个本地 PDF 工作台对你有帮助，欢迎点亮一颗 Star，让更多人发现这个项目，也支持它持续改进。",
         starLater: "以后再说",
         starNote: "免费开源 · 使用应用无需注册账户",
@@ -388,6 +390,7 @@ const I18N = {
         downloadAll: "全部下载",
         busyHint: "处理期间请保持此标签页打开",
         footerNote: "快速、私密的文档工具。无需上传，无需账户。",
+        basedOn: "基于",
         preferences: "偏好设置",
         prefsAutoDlHint: "结果生成后立即保存到下载目录",
         prefsTsa: "时间戳服务 (TSA)",
@@ -435,6 +438,7 @@ const I18N = {
         engineFailed: "引擎加载失败",
         run: "运行",
         running: "处理中…",
+        ocrBusy: (i, n, lines) => `OCR — 第 ${i}/${n} 页` + (lines ? ` — 检测到 ${lines} 行文本…` : '…'),
         done: "完成",
         failed: "失败",
         download: "下载",
@@ -682,7 +686,7 @@ const I18N = {
 };
 
 function detectLang() {
-    const saved = localStorage.getItem("pdfcpu2.webui.prefs");
+    const saved = localStorage.getItem("hspdf.webui.prefs");
     if (saved) {
         try {
             const p = JSON.parse(saved);

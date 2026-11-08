@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,9 +30,9 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/traditionalchinese"
 
-	"github.com/huzpsb/pdfcpu2/internal/corefont/metrics"
-	"github.com/huzpsb/pdfcpu2/internal/fallbackfont"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/corefont/metrics"
+	"github.com/huzpsb/hspdf/internal/fallbackfont"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )

@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package api
 
 // GHSA-9mmx-88p2-c8c6: packed DeviceRGB and CalRGB samples must not be read past the end of the image data.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-9mmx-88p2-c8c6
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-9mmx-88p2-c8c6
 
 import (
 	"bytes"
@@ -26,7 +28,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 func ghsa9mmxRGBImagePDF(colorSpace string, bpc int) []byte {

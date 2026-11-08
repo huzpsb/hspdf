@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 // GHSA-2623-w998-vcr4: annotation deletion, page migration and the repair of references to free objects during
 // optimization must not recurse once per object of a reference chain, because a long chain overflows the goroutine
 // stack and kills the process.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-2623-w998-vcr4
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-2623-w998-vcr4
 
 import (
 	"bytes"
@@ -33,8 +35,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 const ghsa2623Links = 20000

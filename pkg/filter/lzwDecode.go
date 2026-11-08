@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package filter
 
 import (
@@ -21,8 +23,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/huzpsb/pdfcpu2/internal/filter/lzw"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
+	"github.com/huzpsb/hspdf/internal/filter/lzw"
+	"github.com/huzpsb/hspdf/pkg/log"
 )
 
 type lzwDecode struct {

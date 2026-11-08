@@ -5,6 +5,8 @@ Copyright 2026 The pdfcpu Authors.
 Licensed under the MIT License. See LICENSE in this directory.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pkcs7
 
 import (

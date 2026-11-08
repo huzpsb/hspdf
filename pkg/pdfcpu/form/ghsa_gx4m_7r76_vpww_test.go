@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package form
 
 // GHSA-gx4m-7r76-vpww: a page number in form fill data must be checked against the page count before any
 // per-page allocation, so a few bytes of JSON cannot select gigabytes of memory.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-gx4m-7r76-vpww
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-gx4m-7r76-vpww
 
 import (
 	"bytes"
@@ -27,8 +29,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 func ghsaGx4mOnePageContext(t *testing.T) *model.Context {

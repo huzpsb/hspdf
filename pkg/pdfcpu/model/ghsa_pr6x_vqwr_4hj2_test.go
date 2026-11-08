@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 // GHSA-pr6x-vqwr-4hj2: deferred decoding must share a cumulative decoded-buffer budget across aliased streams.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-pr6x-vqwr-4hj2
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-pr6x-vqwr-4hj2
 
 import (
 	"bytes"
@@ -26,8 +28,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/filter"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func TestGHSA_pr6x_vqwr_4hj2_CumulativeBudgetCoversDeferredAliases(t *testing.T) {

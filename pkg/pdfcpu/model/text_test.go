@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 import (
@@ -27,9 +29,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/font"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/color"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/font"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/color"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func textContextCalls(c context.Context) []func() error {

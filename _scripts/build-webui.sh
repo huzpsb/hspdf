@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the pdfcpu2 web UI (WebAssembly) locally.
+# Build the hspdf web UI (WebAssembly) locally.
 # Output lands in webui/static/, ready to be served by any static file server.
 set -e
 

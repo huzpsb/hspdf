@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package primitives
 
 import (
@@ -28,15 +30,15 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/color"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/draw"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/matrix"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/color"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/draw"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/matrix"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
-var imageBoxUserAgent = "pdfcpu/" + model.VersionStr + " (+https://github.com/huzpsb/pdfcpu2)"
+var imageBoxUserAgent = "hspdf/" + model.VersionStr + " (+https://github.com/huzpsb/hspdf)"
 
 // ImageData represents a more direct way for providing image data for form filling scenarios.
 type ImageData struct {

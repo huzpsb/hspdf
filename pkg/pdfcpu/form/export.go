@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package form
 
 import (
@@ -27,10 +29,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/primitives"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/primitives"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 const (
@@ -581,7 +583,7 @@ func extractListBox(xRefTable *model.XRefTable, page int, d types.Dict, id, name
 func header(xRefTable *model.XRefTable, source string) Header {
 	h := Header{}
 	h.Source = filepath.Base(source)
-	h.Version = "pdfcpu " + model.VersionStr
+	h.Version = "hspdf " + model.VersionStr
 	h.Creation = time.Now().Format("2006-01-02 15:04:05 MST")
 	h.ID = []string{}
 	h.Title = xRefTable.Title

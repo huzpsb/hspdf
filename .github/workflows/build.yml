@@ -62,12 +62,14 @@ jobs:
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
         run: |
-          BINARY_NAME="pdfcpu2-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.extension }}"
-          go build -v -ldflags="-s -w" -o "dist/$BINARY_NAME" ./cmd/pdfcpu2
+          BINARY_NAME="hspdf-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.extension }}"
+          go build -v -ldflags="-s -w" -o "dist/$BINARY_NAME" ./cmd/hspdf
+          # Ship the Apache 2.0 license text with every distributed binary.
+          cp LICENSE.txt dist/LICENSE.txt
           upx -9 "dist/$BINARY_NAME" || echo "UPX compression failed or not supported for this architecture, continuing..."
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pdfcpu2-${{ matrix.os }}-${{ matrix.arch }}
+          name: hspdf-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/

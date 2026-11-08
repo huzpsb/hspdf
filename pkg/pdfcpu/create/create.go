@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 // Package create generates PDF documents from declarative descriptions.
 package create
 
@@ -26,13 +28,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/internal/inputlimit"
-	"github.com/huzpsb/pdfcpu2/pkg/font"
-	pdffont "github.com/huzpsb/pdfcpu2/pkg/pdfcpu/font"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/primitives"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/internal/inputlimit"
+	"github.com/huzpsb/hspdf/pkg/font"
+	pdffont "github.com/huzpsb/hspdf/pkg/pdfcpu/font"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/primitives"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // ErrMissingJSONReader signals a missing required JSON input reader.

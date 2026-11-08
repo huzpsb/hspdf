@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The pdfcpu Authors.
+Copyright 2026 huzpsb.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 func replaceTestInput(t *testing.T) string {
@@ -242,7 +242,7 @@ func TestReplaceTextFileChainFontReuse(t *testing.T) {
 				continue
 			}
 			if bf, found := d.Find("BaseFont"); found {
-				if n, ok := bf.(types.Name); ok && n.Value() == "pdfcpu2-replace" {
+				if n, ok := bf.(types.Name); ok && n.Value() == "hspdf-replace" {
 					seen[ir.ObjectNumber.Value()] = true
 				}
 			}

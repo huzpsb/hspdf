@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package model
 
 // GHSA-g766-88fx-58h8: image buffer sizes must use checked multiplication and respect the configured image limits.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-g766-88fx-58h8
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-g766-88fx-58h8
 
 import (
 	"bytes"

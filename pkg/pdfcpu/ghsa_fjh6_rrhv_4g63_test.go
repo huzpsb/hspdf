@@ -14,17 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 // GHSA-fjh6-rrhv-4g63: traditional xref tables must enforce the configured MaxObjectCount and MaxXRefEntries limits.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-fjh6-rrhv-4g63
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-fjh6-rrhv-4g63
 
 import (
 	"bufio"
 	"strings"
 	"testing"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 func TestGHSA_fjh6_rrhv_4g63_ParseXRefTableSubSectionRejectsLimits(t *testing.T) {

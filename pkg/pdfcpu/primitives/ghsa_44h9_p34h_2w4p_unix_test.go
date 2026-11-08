@@ -16,10 +16,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package primitives
 
 // GHSA-44h9-p34h-2w4p: reject FIFOs before a blocking image open.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-44h9-p34h-2w4p
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-44h9-p34h-2w4p
 
 import (
 	"errors"
@@ -29,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 )
 
 func TestGHSA_44h9_p34h_2w4p_FIFO(t *testing.T) {

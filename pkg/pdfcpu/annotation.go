@@ -14,6 +14,8 @@
 	limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package pdfcpu
 
 import (
@@ -26,11 +28,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/huzpsb/pdfcpu2/internal/contextutil"
-	"github.com/huzpsb/pdfcpu2/pkg/log"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/draw"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/model"
-	"github.com/huzpsb/pdfcpu2/pkg/pdfcpu/types"
+	"github.com/huzpsb/hspdf/internal/contextutil"
+	"github.com/huzpsb/hspdf/pkg/log"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/draw"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
 // CachedAnnotationObjNrs returns a list of object numbers representing known annotation dict indirect references.
@@ -626,7 +628,7 @@ func annotationListEntry(annType string, objNr int, ann model.AnnotationRenderer
 
 func annotationJSONHeader() Header {
 	return Header{
-		Version:  "pdfcpu " + model.VersionStr,
+		Version:  "hspdf " + model.VersionStr,
 		Creation: time.Now().Format("2006-01-02 15:04:05 MST"),
 	}
 }

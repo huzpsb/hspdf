@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Modified by huzpsb for hspdf (github.com/huzpsb/hspdf), 2026. Forked from pdfcpu v0.16.4.
+
 package create
 
 // GHSA-cphg-88q6-whwh: table rows and columns in a create template must be bounded across the document before create
 // allocates or renders per row or column, and a table with an invalid anchor must not skip that validation.
-// https://github.com/huzpsb/pdfcpu2/security/advisories/GHSA-cphg-88q6-whwh
+// https://github.com/huzpsb/hspdf/security/advisories/GHSA-cphg-88q6-whwh
 
 import (
 	"fmt"
