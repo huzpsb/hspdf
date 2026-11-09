@@ -17,6 +17,7 @@ limitations under the License.
 package pdfcpu
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -417,7 +418,9 @@ func (s *cmapScanner) next() (string, error) {
 			}
 			return "<<dict>>", nil
 		}
-		end := strings.IndexByte(string(s.bb[s.pos:]), '>')
+		// Scan the remaining buffer in place; a string conversion here would
+		// copy the rest of the CMap for every token (quadratic on dense input).
+		end := bytes.IndexByte(s.bb[s.pos:], '>')
 		if end < 0 {
 			return "", fmt.Errorf("cmap: unterminated hex string")
 		}
