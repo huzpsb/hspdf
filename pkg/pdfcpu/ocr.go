@@ -69,6 +69,13 @@ const (
 	// across all selected pages.
 	ocrMaxImageDim = 1600
 	ocrRGBBudget   = 256 << 20
+	// ocrMaxGSStack caps the q/Q graphics-state stack of the placement
+	// scanner. Each unbalanced q appends a 6-float CTM snapshot, so a flood
+	// of q operators (a decode bomb can inflate a small stream to hundreds
+	// of MB) would otherwise grow the stack without bound. Beyond the cap
+	// the CTM freezes at depth ocrMaxGSStack, mirroring the renderer's
+	// identical 256-entry cap in render/ops.go.
+	ocrMaxGSStack = 256
 )
 
 // ocrPlacement is one /Do invocation of an image XObject with its CTM.
@@ -372,6 +379,9 @@ func scanImagePlacements(c context.Context, ctx *model.Context, bb []byte, resou
 		switch tok.operator {
 		case "q":
 			stack = append(stack, stack[len(stack)-1])
+			if len(stack) > ocrMaxGSStack {
+				stack = stack[:ocrMaxGSStack]
+			}
 		case "Q":
 			if len(stack) > 1 {
 				stack = stack[:len(stack)-1]
