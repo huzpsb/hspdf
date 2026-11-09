@@ -17,10 +17,14 @@ limitations under the License.
 package pdfcpu
 
 import (
+	"bytes"
+	"encoding/binary"
 	"image"
 	"strings"
 	"testing"
 
+	"github.com/huzpsb/hspdf/pkg/filter"
+	"github.com/huzpsb/hspdf/pkg/pdfcpu/model"
 	"github.com/huzpsb/hspdf/pkg/pdfcpu/types"
 )
 
@@ -83,5 +87,56 @@ func TestOCRJobRGBBudgetConstant(t *testing.T) {
 	if ocrMaxDecodePixels <= ocrMaxImageDim*ocrMaxImageDim {
 		t.Fatalf("decode cap %d must exceed retained buffer cap %d",
 			ocrMaxDecodePixels, ocrMaxImageDim*ocrMaxImageDim)
+	}
+}
+
+// ocrHeaderOnlyJPEG returns a truncated JPEG whose SOF header claims w x h
+// but that carries no entropy data. The Go decoder allocates its frame
+// buffers from the header before it fails.
+func ocrHeaderOnlyJPEG(t *testing.T, w, h int) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	b.Write([]byte{0xff, 0xd8})
+
+	sof := []byte{0x00, 0x0b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x11, 0x00}
+	binary.BigEndian.PutUint16(sof[3:], uint16(h))
+	binary.BigEndian.PutUint16(sof[5:], uint16(w))
+	b.Write([]byte{0xff, 0xc0})
+	b.Write(sof)
+
+	b.Write([]byte{0xff, 0xdb, 0x00, 0x43, 0x00})
+	for i := 0; i < 64; i++ {
+		b.WriteByte(0x01)
+	}
+
+	sos := []byte{0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00}
+	b.Write([]byte{0xff, 0xda})
+	b.Write(sos)
+	return b.Bytes()
+}
+
+// TestExtractOCRImageRejectsHeaderDimensionsBeyondLimit verifies that the
+// pixel cap is enforced against the encoded image's own header dimensions
+// (image.DecodeConfig) and not only against the PDF dict entries: a dict
+// claiming 32x32 must not smuggle a 20000x20000 JPEG into the decoder.
+func TestExtractOCRImageRejectsHeaderDimensionsBeyondLimit(t *testing.T) {
+	ctx, err := model.NewContext(bytes.NewReader([]byte("%PDF-1.7\n")), model.NewDefaultConfiguration())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sd := &types.StreamDict{
+		Dict: types.Dict{
+			"Width":            types.Integer(32),
+			"Height":           types.Integer(32),
+			"BitsPerComponent": types.Integer(8),
+			"ColorSpace":       types.Name("DeviceGray"),
+			"Filter":           types.Name("DCTDecode"),
+		},
+		Raw:            ocrHeaderOnlyJPEG(t, 20000, 20000),
+		FilterPipeline: []types.PDFFilter{{Name: filter.DCT}},
+	}
+	_, _, _, err = extractOCRImage(t.Context(), ctx, sd, 1)
+	if err == nil || !strings.Contains(err.Error(), "pixel decode limit") {
+		t.Fatalf("want pixel decode limit error from header dimensions, got %v", err)
 	}
 }

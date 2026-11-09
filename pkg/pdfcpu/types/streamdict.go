@@ -35,6 +35,12 @@ type PDFFilter struct {
 	DecodeParms Dict
 }
 
+// MaxFilterPipelineLen bounds the number of filters in one stream pipeline.
+// Every pipeline stage may expand its input up to the configured decode
+// limit, so unbounded chains multiply decode work; real-world pipelines
+// stay below four stages.
+const MaxFilterPipelineLen = 8
+
 // StreamDict represents a PDF stream dict object.
 type StreamDict struct {
 	Dict
@@ -412,6 +418,9 @@ func (sd *StreamDict) decodeLength(maxLen, maxDecodeBytes int64) ([]byte, error)
 
 	// Apply each filter in the pipeline to result of preceding filter.
 	fpl := sd.nonCryptFilters()
+	if len(fpl) > MaxFilterPipelineLen {
+		return nil, fmt.Errorf("filter pipeline of %d filters exceeds limit %d", len(fpl), MaxFilterPipelineLen)
+	}
 	for idx, f := range fpl {
 
 		if preserveEncodedImageFilter(f.Name) {

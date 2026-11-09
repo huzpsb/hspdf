@@ -989,6 +989,48 @@ func validateXRefStreamDirectEntries(d types.Dict, objNr int) error {
 	return nil
 }
 
+// xRefStreamEntryBudget bounds the total number of entries declared by xref
+// streams across all sections of one file. A compressed stream can declare an
+// entry per decoded byte while every entry costs a table slot and an Objects
+// slice element in memory, so the aggregate needs a file-size-proportional cap
+// in addition to the per-section MaxXRefEntries limit. Classic xref sections
+// pay 20 file bytes per entry and are naturally bounded, so they are not
+// charged.
+func xRefStreamEntryBudget(ctx *model.Context) int64 {
+	limit := int64(model.DefaultResourceLimits().MaxObjectCount)
+	if ctx.Configuration != nil && ctx.Configuration.Limits.MaxObjectCount > 0 {
+		limit = int64(ctx.Configuration.Limits.MaxObjectCount)
+	}
+	// Even the densest legitimate files stay well below one entry per two
+	// input bytes.
+	if bySize := ctx.Read.FileSize / 2; bySize < limit {
+		limit = bySize
+	}
+	if limit < 4096 {
+		limit = 4096
+	}
+	// Sections of incremental updates legitimately redeclare entries.
+	return limit * 16
+}
+
+// declaredXRefStreamEntries sums the object counts of an xref stream's /Index
+// (or its /Size when /Index is absent) without materializing the entry list.
+func declaredXRefStreamEntries(sd *types.StreamDict) int64 {
+	if ind := sd.Index(); ind != nil {
+		var total int64
+		for i := 1; i < len(ind); i += 2 {
+			if n, ok := ind[i].(types.Integer); ok && n.Value() > 0 {
+				total += int64(n.Value())
+			}
+		}
+		return total
+	}
+	if size := sd.Size(); size != nil && *size > 0 {
+		return int64(*size)
+	}
+	return 0
+}
+
 func xRefStreamDict(c context.Context, ctx *model.Context, o types.Object, objNr int, streamOffset int64) (*types.XRefStreamDict, error) {
 	d, ok := o.(types.Dict)
 	if !ok {
@@ -1023,6 +1065,16 @@ func xRefStreamDict(c context.Context, ctx *model.Context, o types.Object, objNr
 	if err = ctx.DecodeStream(&sd); err != nil {
 		return nil, fmt.Errorf("xRefStreamDict: cannot decode stream for obj#:%d: %w", objNr, err)
 	}
+
+	// Charge the declared entries against the file's aggregate budget before
+	// they are materialized into an Objects slice and xref table entries.
+	declared := declaredXRefStreamEntries(&sd)
+	if budget := xRefStreamEntryBudget(ctx); ctx.Read.XRefStreamEntries+declared > budget {
+		return nil, fmt.Errorf(
+			"xref stream obj#%d: %d declared entries (cumulative %d) exceed budget %d: %w",
+			objNr, declared, ctx.Read.XRefStreamEntries, budget, errCorruptXRefStream)
+	}
+	ctx.Read.XRefStreamEntries += declared
 
 	declaredSize := sd.Size()
 	var xsd *types.XRefStreamDict
@@ -2731,6 +2783,10 @@ func pdfFilterPipeline(c context.Context, ctx *model.Context, dict types.Dict) (
 	filterArray, ok := o.(types.Array)
 	if !ok {
 		return nil, fmt.Errorf("filter pipeline: %w", errCorruptFilterArray)
+	}
+	if len(filterArray) > types.MaxFilterPipelineLen {
+		return nil, fmt.Errorf("filter pipeline of %d filters exceeds limit %d: %w",
+			len(filterArray), types.MaxFilterPipelineLen, errCorruptFilterArray)
 	}
 	names, err := filterNames(c, ctx, filterArray)
 	if err != nil {

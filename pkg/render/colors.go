@@ -468,9 +468,14 @@ const (
 )
 
 // psNode is one parsed token of a type 4 program. A proc ({...}) group is a
-// node with isProc set whose proc field carries the nested nodes.
+// node with isProc set whose proc field carries the nested nodes. Numeric
+// literals are decoded once at parse time: the shading budget permits
+// millions of token evaluations and a per-evaluation ParseFloat would
+// multiply into seconds of string parsing.
 type psNode struct {
 	tok    string
+	num    float64
+	isNum  bool
 	proc   []psNode
 	isProc bool
 }
@@ -494,7 +499,11 @@ func parsePSNodes(tokens []string) []psNode {
 				cur = append(parent, psNode{proc: cur, isProc: true})
 			}
 		default:
-			cur = append(cur, psNode{tok: tok})
+			n := psNode{tok: tok}
+			if v, err := strconv.ParseFloat(tok, 64); err == nil {
+				n.num, n.isNum = v, true
+			}
+			cur = append(cur, n)
 		}
 	}
 	// Attach unclosed groups so their tokens remain unexecutable.
@@ -957,6 +966,12 @@ func (vm *psVM) exec(prog []psNode, depth int, in []float64) error {
 			// Procs are only meaningful for if/ifelse.
 			continue
 		}
+		if node.isNum {
+			// Numeric literals are decoded once at parse time: the shading
+			// budget allows millions of token evaluations per paint.
+			vm.push(node.num)
+			continue
+		}
 		tok := node.tok
 		switch tok {
 		case "if", "ifelse":
@@ -992,10 +1007,6 @@ func (vm *psVM) exec(prog []psNode, depth int, in []float64) error {
 			}
 			continue
 		}
-		if v, err := strconv.ParseFloat(tok, 64); err == nil {
-			vm.push(v)
-			continue
-		}
 		if err := vm.op(tok, in); err != nil {
 			return err
 		}
@@ -1003,32 +1014,38 @@ func (vm *psVM) exec(prog []psNode, depth int, in []float64) error {
 	return nil
 }
 
+// psDivByZero reports a zero divisor in a PostScript calculator function.
+var psDivByZero = errors.New("calculator function: division by zero")
+
+// psBinaryOps holds the binary arithmetic operators. The table is shared:
+// rebuilding it per operator token would multiply allocations across the
+// shading budget's millions of evaluations.
+var psBinaryOps = map[string]func(a, b float64) (float64, error){
+	"add": func(a, b float64) (float64, error) { return a + b, nil },
+	"sub": func(a, b float64) (float64, error) { return a - b, nil },
+	"mul": func(a, b float64) (float64, error) { return a * b, nil },
+	"div": func(a, b float64) (float64, error) {
+		if b == 0 {
+			return 0, psDivByZero
+		}
+		return a / b, nil
+	},
+	"idiv": func(a, b float64) (float64, error) {
+		if b == 0 {
+			return 0, psDivByZero
+		}
+		return float64(int(a) / int(b)), nil
+	},
+	"mod": func(a, b float64) (float64, error) {
+		if b == 0 {
+			return 0, psDivByZero
+		}
+		return float64(int(a) % int(b)), nil
+	},
+}
+
 func (vm *psVM) op(tok string, in []float64) error {
-	binErr := errors.New("calculator function: division by zero")
-	binary := map[string]func(a, b float64) (float64, error){
-		"add": func(a, b float64) (float64, error) { return a + b, nil },
-		"sub": func(a, b float64) (float64, error) { return a - b, nil },
-		"mul": func(a, b float64) (float64, error) { return a * b, nil },
-		"div": func(a, b float64) (float64, error) {
-			if b == 0 {
-				return 0, binErr
-			}
-			return a / b, nil
-		},
-		"idiv": func(a, b float64) (float64, error) {
-			if b == 0 {
-				return 0, binErr
-			}
-			return float64(int(a) / int(b)), nil
-		},
-		"mod": func(a, b float64) (float64, error) {
-			if b == 0 {
-				return 0, binErr
-			}
-			return float64(int(a) % int(b)), nil
-		},
-	}
-	if f, ok := binary[tok]; ok {
+	if f, ok := psBinaryOps[tok]; ok {
 		b, err := vm.pop()
 		if err != nil {
 			return err

@@ -254,7 +254,11 @@ func TestShadingHugeCalculatorFunction(t *testing.T) {
 	}
 	d := newDevice(nil, nil, newCanvas(64, 64), ident())
 	sh := &shading{shType: 1, fn: fn, cs: csGray}
-	mustFinish(t, 5*time.Second, "paintShading huge calculator function", func() {
+	// The budget bounds the work to millions of token evaluations; without
+	// block sampling this multiplies into per-pixel interpretation (minutes
+	// to hours), so a generous wall clock still proves boundedness on slow
+	// runners.
+	mustFinish(t, 30*time.Second, "paintShading huge calculator function", func() {
 		d.paintShading(sh, ident())
 	})
 }

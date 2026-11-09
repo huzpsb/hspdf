@@ -153,6 +153,18 @@ func (d *device) decodeImage(sd *types.StreamDict, csObj types.Object) (*rasterI
 
 	lf := lastFilterName(sd)
 	if lf == filter.DCT {
+		// The decoder allocates its frame buffers from the stream's internal
+		// header, not from /Width and /Height: a dict that understates the
+		// dimensions must not bypass the limits, so validate the real header
+		// dimensions before jpeg.Decode allocates anything.
+		if cfg, cfgErr := jpeg.DecodeConfig(bytes.NewReader(data)); cfgErr == nil {
+			if limit := d.maxImagePixels(); !pixelsWithinLimit(int64(cfg.Width), int64(cfg.Height), limit) {
+				return nil, fmt.Errorf("image: dct %dx%d pixels exceeds limit of %d", cfg.Width, cfg.Height, limit)
+			}
+			if limit := d.maxImageBytes(); !bufferBytesWithinLimit(int64(cfg.Width), int64(cfg.Height), 4, limit) {
+				return nil, fmt.Errorf("image: dct %dx%d exceeds %d byte buffer limit", cfg.Width, cfg.Height, limit)
+			}
+		}
 		im, err := jpeg.Decode(bytes.NewReader(data))
 		if err != nil {
 			return nil, fmt.Errorf("image: dct: %w", err)
@@ -173,8 +185,11 @@ func (d *device) decodeImage(sd *types.StreamDict, csObj types.Object) (*rasterI
 		} else {
 			ri.img = toNRGBA(im)
 		}
-		if limit := d.maxImageBytes(); !bufferBytesWithinLimit(int64(w), int64(h), 4, limit) {
-			return nil, fmt.Errorf("image: %dx%d exceeds %d byte buffer limit", w, h, limit)
+		// Re-check with the dimensions the decoder actually produced: they
+		// bound the NRGBA conversion and any soft mask buffers above.
+		b := im.Bounds()
+		if limit := d.maxImageBytes(); !bufferBytesWithinLimit(int64(b.Dx()), int64(b.Dy()), 4, limit) {
+			return nil, fmt.Errorf("image: dct %dx%d exceeds %d byte buffer limit", b.Dx(), b.Dy(), limit)
 		}
 		if imgMask {
 			ri.stencil = alphaFromNRGBA(ri.img)
@@ -401,7 +416,8 @@ func decodeStencil(data []byte, w, h, bpc int, decode [][2]float64) *image.Alpha
 
 // applySMask multiplies the alpha channel of img with the given soft mask.
 // A soft mask is a luminance image: its gray value defines the opacity.
-func applySMask(img *image.NRGBA, sm *rasterImage) {
+// cancel is polled once per row and may be nil.
+func applySMask(img *image.NRGBA, sm *rasterImage, cancel func() bool) {
 	if img == nil || sm == nil || sm.img == nil && sm.stencil == nil {
 		return
 	}
@@ -411,6 +427,9 @@ func applySMask(img *image.NRGBA, sm *rasterImage) {
 	}
 	b := img.Bounds()
 	for y := b.Min.Y; y < b.Max.Y; y++ {
+		if cancel != nil && cancel() {
+			return
+		}
 		sy := y * sh / b.Dy()
 		for x := b.Min.X; x < b.Max.X; x++ {
 			sx := x * sw / b.Dx()
@@ -428,13 +447,17 @@ func applySMask(img *image.NRGBA, sm *rasterImage) {
 }
 
 // applyMaskStencil applies a stencil /Mask (samples of 1 are transparent).
-func applyMaskStencil(img *image.NRGBA, mk *rasterImage) {
+// cancel is polled once per row and may be nil.
+func applyMaskStencil(img *image.NRGBA, mk *rasterImage, cancel func() bool) {
 	if img == nil || mk == nil || mk.stencil == nil {
 		return
 	}
 	sw, sh := mk.w, mk.h
 	b := img.Bounds()
 	for y := b.Min.Y; y < b.Max.Y; y++ {
+		if cancel != nil && cancel() {
+			return
+		}
 		sy := y * sh / b.Dy()
 		for x := b.Min.X; x < b.Max.X; x++ {
 			sx := x * sw / b.Dx()
@@ -460,7 +483,7 @@ func (d *device) loadXObjectImage(objNr int, sd *types.StreamDict) (*rasterImage
 		if o, found := sd.Dict.Find("SMask"); found && o != nil {
 			if smsd, _, err := d.ctx.DereferenceStreamDict(o); err == nil && smsd != nil {
 				if sm, err := d.decodeImage(smsd, smsd.Dict["ColorSpace"]); err == nil {
-					applySMask(ri.img, sm)
+					applySMask(ri.img, sm, d.cancelled)
 				}
 			}
 		}
@@ -468,9 +491,9 @@ func (d *device) loadXObjectImage(objNr int, sd *types.StreamDict) (*rasterImage
 			if mksd, _, err := d.ctx.DereferenceStreamDict(o); err == nil && mksd != nil {
 				if mk, err := d.decodeImage(mksd, mksd.Dict["ColorSpace"]); err == nil {
 					if mk.stencil != nil {
-						applyMaskStencil(ri.img, mk)
+						applyMaskStencil(ri.img, mk, d.cancelled)
 					} else if mk.img != nil {
-						applySMask(ri.img, mk)
+						applySMask(ri.img, mk, d.cancelled)
 					}
 				}
 			}
@@ -540,7 +563,22 @@ func (d *device) drawImage(ri *rasterImage, m mat, alpha float64, stencilColor r
 		samples = 3
 	}
 
+	if d.drawImageOps >= d.imageDrawLimit() {
+		d.warnImageDrawLimit()
+		return
+	}
+
 	for py := py0; py < py1; py++ {
+		// Image painting is per-pixel work without a rasterizer: poll
+		// cancellation between rows and stop once the page wide draw budget
+		// is exhausted so a stream of image operators cannot pin a core.
+		if d.cancelled() {
+			return
+		}
+		if d.drawImageOps >= d.imageDrawLimit() {
+			d.warnImageDrawLimit()
+			return
+		}
 		for px := px0; px < px1; px++ {
 			u, v := inv.apply(float64(px)+0.5, float64(py)+0.5)
 			if u < 0 || u >= 1 || v < 0 || v >= 1 {
@@ -569,6 +607,7 @@ func (d *device) drawImage(ri *rasterImage, m mat, alpha float64, stencilColor r
 				continue
 			}
 			d.cv.blend(px, py, c, float64(c.a)/255*a)
+			d.drawImageOps++
 		}
 	}
 }

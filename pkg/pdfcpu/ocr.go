@@ -17,11 +17,13 @@ limitations under the License.
 package pdfcpu
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -488,7 +490,25 @@ func extractOCRImage(c context.Context, ctx *model.Context, sd *types.StreamDict
 	if err != nil {
 		return 0, 0, nil, err
 	}
-	decoded, _, err := image.Decode(im.Reader)
+
+	// Buffer the encoded image once: the pixel cap above uses the PDF dict's
+	// /Width and /Height, but the decoder allocates from the stream's own
+	// header. Validate the real header dimensions (DecodeConfig) before the
+	// decoder allocates its frame buffers, so a dict that understates the
+	// size cannot bypass the limit (mirrors the renderer's DCT guard).
+	data, err := io.ReadAll(im.Reader)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("read %s: %w", im.FileType, err)
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("decode config %s: %w", im.FileType, err)
+	}
+	if int64(cfg.Width) <= 0 || int64(cfg.Height) <= 0 ||
+		int64(cfg.Width)*int64(cfg.Height) > ocrMaxDecodePixels {
+		return 0, 0, nil, fmt.Errorf("image %dx%d exceeds %d pixel decode limit", cfg.Width, cfg.Height, ocrMaxDecodePixels)
+	}
+	decoded, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("decode %s: %w", im.FileType, err)
 	}

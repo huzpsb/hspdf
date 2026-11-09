@@ -219,6 +219,7 @@ type ReadContext struct {
 	ObjectStreams       types.IntSet // All object numbers of any object streams found which need to be decoded.
 	UsingXRefStreams    bool         // File is using xref streams.
 	XRefStreams         types.IntSet // All object numbers of any xref streams found.
+	XRefStreamEntries   int64        // Total entries declared by processed xref streams (memory budget).
 }
 
 func newReadContext(rs io.ReadSeeker) (*ReadContext, error) {

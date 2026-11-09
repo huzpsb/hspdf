@@ -125,3 +125,31 @@ func TestDecodedContentCopyPreservesCause(t *testing.T) {
 		t.Fatalf("expected decoded content copy context in %q", err)
 	}
 }
+
+// TestDecodeRejectsOversizedFilterPipeline verifies the pipeline length cap:
+// each stage may expand its input up to the decode limit, so unbounded
+// chains must be rejected before any decoding work.
+func TestDecodeRejectsOversizedFilterPipeline(t *testing.T) {
+	fpl := make([]PDFFilter, MaxFilterPipelineLen+1)
+	for i := range fpl {
+		fpl[i] = PDFFilter{Name: filter.Flate}
+	}
+	sd := StreamDict{
+		Dict:           NewDict(),
+		Raw:            []byte("data"),
+		FilterPipeline: fpl,
+	}
+
+	err := sd.DecodeWithLimit(filter.DefaultMaxDecodeBytes)
+	if err == nil || !strings.Contains(err.Error(), "exceeds limit") {
+		t.Fatalf("want pipeline length error, got %v", err)
+	}
+
+	// The maximum pipeline length itself is not rejected on length grounds
+	// (it may still fail on its content, which is fine).
+	sd.FilterPipeline = fpl[:MaxFilterPipelineLen]
+	if err := sd.DecodeWithLimit(filter.DefaultMaxDecodeBytes); err != nil &&
+		strings.Contains(err.Error(), "exceeds limit") && strings.Contains(err.Error(), "filters") {
+		t.Fatalf("pipeline of %d filters must not be rejected on length", MaxFilterPipelineLen)
+	}
+}

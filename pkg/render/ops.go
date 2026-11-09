@@ -131,6 +131,14 @@ type device struct {
 	// imgBytes is the cumulative buffer size of the cached decoded images.
 	imgBytes int64
 
+	// drawImageOps counts the per-pixel sampling work of image draws on this
+	// page; imageDrawOpsLimit bounds it (defaults to maxImageDrawOps) so a
+	// content stream of image operators cannot multiply into an unbounded
+	// render. imageDrawWarned suppresses repeat warnings.
+	drawImageOps      int64
+	imageDrawOpsLimit int64
+	imageDrawWarned   bool
+
 	// glyphBytes is the cumulative size of the cached glyph outlines.
 	glyphBytes int64
 
@@ -167,22 +175,47 @@ const (
 	// memory (mirrors the scanner limits of the text extractor).
 	maxContentArrayDepth = 64
 	maxContentArrayElems = 1 << 16
+
+	// maxImageDrawOps bounds the cumulative per-pixel sampling work of image
+	// draws on one page. Every Do repaints its device bbox, so repeated image
+	// operators multiply page sized work; cancellation alone does not help
+	// stateless callers.
+	maxImageDrawOps = 1 << 30
 )
 
 func newDevice(c context.Context, ctx *model.Context, cv *canvas, base mat) *device {
 	return &device{
-		ctx:       ctx,
-		cv:        cv,
-		base:      base,
-		gs:        newGState(),
-		fonts:     map[string]*pdfFont{},
-		glyphs:    map[glyphCacheKey][]subPath{},
-		images:    map[int]*rasterImage{},
-		objActive: map[int]bool{},
-		cancel:    c,
-		pageW:     cv.w,
-		pageH:     cv.h,
+		ctx:               ctx,
+		cv:                cv,
+		base:              base,
+		gs:                newGState(),
+		fonts:             map[string]*pdfFont{},
+		glyphs:            map[glyphCacheKey][]subPath{},
+		images:            map[int]*rasterImage{},
+		objActive:         map[int]bool{},
+		cancel:            c,
+		pageW:             cv.w,
+		pageH:             cv.h,
+		imageDrawOpsLimit: maxImageDrawOps,
 	}
+}
+
+// imageDrawLimit returns the effective image draw budget, defaulting zero
+// valued devices (constructed as literals) to maxImageDrawOps.
+func (d *device) imageDrawLimit() int64 {
+	if d.imageDrawOpsLimit > 0 {
+		return d.imageDrawOpsLimit
+	}
+	return maxImageDrawOps
+}
+
+// warnImageDrawLimit reports the exhausted image draw budget once.
+func (d *device) warnImageDrawLimit() {
+	if d.imageDrawWarned {
+		return
+	}
+	d.imageDrawWarned = true
+	d.warn("images: draw budget of %d pixel operations exhausted, further image painting skipped", d.imageDrawLimit())
 }
 
 // cancelled reports whether the render context has been cancelled.

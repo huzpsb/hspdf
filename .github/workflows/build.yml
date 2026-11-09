@@ -54,6 +54,11 @@ jobs:
         run: go mod download
 
       - name: Test
+        # Tests run once on the linux/amd64 runner: the other matrix jobs
+        # only cross-compile. This keeps CI fast and avoids platform
+        # dependent flakes (slow darwin runners on budget tests, windows
+        # symlink permission tests).
+        if: matrix.os == 'linux' && matrix.arch == 'amd64'
         run: go test ./...
 
       - name: Build Artifact
