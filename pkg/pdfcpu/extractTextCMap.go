@@ -32,18 +32,32 @@ type toUnicodeCMap struct {
 	mappings map[uint32]string
 	// codeLen is the byte length of character codes (1, 2 or 4).
 	codeLen int
+	// bytes is the cumulative size of all stored mapping strings.
+	bytes int
 }
 
-// maxToUnicodeMappings bounds the total number of code mappings derived from
-// a ToUnicode CMap. A bfrange entry may expand to 65536 mappings and blocks
-// may repeat; without an aggregate cap a few KB of CMap text can expand to
-// millions of map entries and exhaust memory. The cap comfortably covers the
-// full 2 byte code space.
-const maxToUnicodeMappings = 1 << 18
+// Bounds guarding ToUnicode CMap parsing against memory amplification:
+// a bfrange entry copies its destination string once per mapped code
+// (up to 65536 times), so the number of mappings alone does not bound
+// memory. Real CMaps map at most the 2 byte code space with short
+// destinations; the limits are orders of magnitude above that.
+const (
+	// maxToUnicodeMappings bounds the total number of code mappings.
+	maxToUnicodeMappings = 1 << 18
+	// maxToUnicodeDstBytes bounds a single mapping destination.
+	maxToUnicodeDstBytes = 4096
+	// maxToUnicodeBytes bounds the total size of all mapping strings.
+	maxToUnicodeBytes = 16 << 20
+	// maxToUnicodeStreamBytes bounds the accepted CMap stream size.
+	maxToUnicodeStreamBytes = 16 << 20
+)
 
 // parseToUnicodeCMap parses the PostScript-like CMap syntax of a ToUnicode stream
 // and extracts codespace, bfchar and bfrange mappings.
 func parseToUnicodeCMap(bb []byte) (*toUnicodeCMap, error) {
+	if len(bb) > maxToUnicodeStreamBytes {
+		return nil, fmt.Errorf("cmap: stream exceeds %d bytes", maxToUnicodeStreamBytes)
+	}
 	cu := &toUnicodeCMap{mappings: map[uint32]string{}}
 
 	s := newCMapScanner(bb)
@@ -231,28 +245,33 @@ func hexTokenBytes(tok string) ([]byte, error) {
 
 // add records a single bfchar mapping src -> dst.
 func (cu *toUnicodeCMap) add(src, dst []byte) {
-	if len(src) == 0 {
+	if len(src) == 0 || len(dst) > maxToUnicodeDstBytes {
 		return
 	}
-	if len(cu.mappings) >= maxToUnicodeMappings {
+	s := utf16BytesToString(dst)
+	if len(cu.mappings) >= maxToUnicodeMappings || cu.bytes+len(s) > maxToUnicodeBytes {
 		return
 	}
-	cu.mappings[codeOfBytes(src)] = utf16BytesToString(dst)
+	cu.mappings[codeOfBytes(src)] = s
+	cu.bytes += len(s)
 }
 
 // addRangeEntry maps lo..hi to dst, dst+1, ... by incrementing the final
-// UTF-16 code unit of dst.
+// UTF-16 code unit of dst. Each code stores its own copy of the shifted
+// destination, so the byte budget is checked before every allocation.
 func (cu *toUnicodeCMap) addRangeEntry(lo, hi, dst []byte) {
 	loC, hiC := codeOfBytes(lo), codeOfBytes(hi)
-	if len(lo) == 0 || hiC < loC || hiC-loC > 65535 {
+	if len(lo) == 0 || len(dst) > maxToUnicodeDstBytes || hiC < loC || hiC-loC > 65535 {
 		return
 	}
 	dstUnits := utf16BytesToUnits(dst)
 	for d := uint32(0); loC+d <= hiC; d++ {
-		if len(cu.mappings) >= maxToUnicodeMappings {
+		if len(cu.mappings) >= maxToUnicodeMappings || cu.bytes > maxToUnicodeBytes {
 			return
 		}
-		cu.mappings[loC+d] = unitsToString(shiftUnits(dstUnits, d))
+		s := unitsToString(shiftUnits(dstUnits, d))
+		cu.mappings[loC+d] = s
+		cu.bytes += len(s)
 	}
 }
 
@@ -263,10 +282,15 @@ func (cu *toUnicodeCMap) addArrayEntry(lo []byte, dsts [][]byte) {
 	}
 	loC := codeOfBytes(lo)
 	for i, dst := range dsts {
-		if len(cu.mappings) >= maxToUnicodeMappings {
+		if len(dst) > maxToUnicodeDstBytes {
+			continue
+		}
+		s := utf16BytesToString(dst)
+		if len(cu.mappings) >= maxToUnicodeMappings || cu.bytes+len(s) > maxToUnicodeBytes {
 			return
 		}
-		cu.mappings[loC+uint32(i)] = utf16BytesToString(dst)
+		cu.mappings[loC+uint32(i)] = s
+		cu.bytes += len(s)
 	}
 }
 

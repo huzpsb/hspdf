@@ -813,6 +813,20 @@ func d0FontBuffer(f *sfnt.Font) (*sfnt.Buffer, bool) {
 	return b, b != nil
 }
 
+// maxGlyphCacheBytes bounds the memory held by cached glyph outlines
+// (~16 bytes per point). Legit documents stay orders of magnitude below it;
+// beyond it outlines are still rendered but no longer cached.
+const maxGlyphCacheBytes = 128 << 20
+
+// outlineBytes returns the approximate memory held by sps.
+func outlineBytes(sps []subPath) int64 {
+	var n int64
+	for _, sp := range sps {
+		n += int64(len(sp.pts)) * 16
+	}
+	return n
+}
+
 // glyphOutline returns the cached flattened outline of a glyph in 1000-unit
 // per em glyph space with the y axis pointing down.
 func (d *device) glyphOutline(f *pdfFont, gid sfnt.GlyphIndex) []subPath {
@@ -839,8 +853,9 @@ func (d *device) glyphOutline(f *pdfFont, gid sfnt.GlyphIndex) []subPath {
 	if len(sps) > 0 && upem > 0 && upem != 1000 {
 		sps = transformPath(sps, scaling(1000/upem, 1000/upem))
 	}
-	if len(d.glyphs) < 20000 {
+	if n := outlineBytes(sps); d.glyphBytes+n <= maxGlyphCacheBytes {
 		d.glyphs[key] = sps
+		d.glyphBytes += n
 	}
 	return sps
 }

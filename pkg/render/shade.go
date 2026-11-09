@@ -206,22 +206,53 @@ func (d *device) paintShading(sh *shading, m mat) {
 		return sh.cs.resolve(out), true
 	}
 
+	// Bound the total function evaluation work. Type 4 (calculator)
+	// programs are interpreted per pixel with O(tokens) cost and sampled
+	// functions interpolate 2^nIn corners per pixel; a pathological
+	// function would otherwise multiply into an unbounded run. Oversized
+	// shadings degrade to block sampling, normal ones render exactly.
+	unitCost := int64(1)
+	if sh.fn != nil {
+		switch sh.fn.fnType {
+		case 4:
+			unitCost = int64(sh.fn.nTokens) + 1
+		case 0:
+			unitCost = 1 << uint(len(sh.fn.size))
+		}
+	}
+	area := int64(px1-px0) * int64(py1-py0)
+	const maxShadingWork = 64 << 20 // weighted evaluations per shading
+	block := 1
+	if unitCost > 0 && area*unitCost > maxShadingWork {
+		block = int(math.Ceil(math.Sqrt(float64(area) * float64(unitCost) / float64(maxShadingWork))))
+	}
+
 	alpha := d.gs.fillAlpha
-	for py := py0; py < py1; py++ {
-		for px := px0; px < px1; px++ {
-			ux, uy := inv.apply(float64(px)+0.5, float64(py)+0.5)
+	for py := py0; py < py1; py += block {
+		if d.cancelled() {
+			return
+		}
+		for px := px0; px < px1; px += block {
+			// Evaluate the function once per block at its center.
+			cy := min(py+block/2, py1-1)
+			cx := min(px+block/2, px1-1)
+			ux, uy := inv.apply(float64(cx)+0.5, float64(cy)+0.5)
 			c, ok := eval(ux, uy)
 			if !ok || c.a == 0 {
 				continue
 			}
-			a := alpha
-			if d.gs.clip != nil {
-				a *= float64(d.gs.clip.AlphaAt(px, py).A) / 255
+			for y := py; y < py+block && y < py1; y++ {
+				for x := px; x < px+block && x < px1; x++ {
+					a := alpha
+					if d.gs.clip != nil {
+						a *= float64(d.gs.clip.AlphaAt(x, y).A) / 255
+					}
+					if a <= 0.004 {
+						continue
+					}
+					d.cv.blend(x, y, c, float64(c.a)/255*a)
+				}
 			}
-			if a <= 0.004 {
-				continue
-			}
-			d.cv.blend(px, py, c, float64(c.a)/255*a)
 		}
 	}
 }

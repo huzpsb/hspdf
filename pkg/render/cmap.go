@@ -28,13 +28,25 @@ import (
 type toUnicodeCMap struct {
 	maps     map[uint32]string
 	min, max int // code length in bytes
+	// bytes is the cumulative size of all stored mapping strings.
+	bytes int
 }
 
-// maxToUnicodeMappings bounds the total number of code mappings derived from
-// a ToUnicode CMap. A bfrange entry may expand to 65536 mappings; without an
-// aggregate cap a small stream with a few hundred ranges exhausts memory.
-// The cap comfortably covers the full 2 byte code space.
-const maxToUnicodeMappings = 1 << 18
+// Bounds guarding ToUnicode CMap parsing against memory amplification: a
+// bfrange entry copies its destination once per mapped code (up to 65536
+// times), so the number of mappings alone does not bound memory. Real CMaps
+// map at most the 2 byte code space with short destinations; the limits are
+// orders of magnitude above that.
+const (
+	// maxToUnicodeMappings bounds the total number of code mappings.
+	maxToUnicodeMappings = 1 << 18
+	// maxToUnicodeDstChars bounds a single mapping destination.
+	maxToUnicodeDstChars = 4096
+	// maxToUnicodeBytes bounds the total size of all mapping strings.
+	maxToUnicodeBytes = 16 << 20
+	// maxToUnicodeStreamBytes bounds the accepted CMap stream size.
+	maxToUnicodeStreamBytes = 16 << 20
+)
 
 func newToUnicodeCMap() *toUnicodeCMap {
 	return &toUnicodeCMap{maps: map[uint32]string{}, min: 4, max: 1}
@@ -47,6 +59,9 @@ func (tu *toUnicodeCMap) lookup(code uint32) (string, bool) {
 
 // parseToUnicode parses the CMap syntax subset needed for ToUnicode streams.
 func parseToUnicode(bb []byte) (*toUnicodeCMap, error) {
+	if len(bb) > maxToUnicodeStreamBytes {
+		return nil, fmt.Errorf("cmap: stream exceeds %d bytes", maxToUnicodeStreamBytes)
+	}
 	tu := newToUnicodeCMap()
 	toks := cmapTokens(bb)
 	for i := 0; i < len(toks); i++ {
@@ -127,13 +142,14 @@ func parseToUnicode(bb []byte) (*toUnicodeCMap, error) {
 }
 
 func (tu *toUnicodeCMap) add(src []byte, dst string) {
-	if len(src) < 1 || len(src) > 4 {
+	if len(src) < 1 || len(src) > 4 || len(dst) > maxToUnicodeDstChars {
 		return
 	}
-	if len(tu.maps) >= maxToUnicodeMappings {
+	if len(tu.maps) >= maxToUnicodeMappings || tu.bytes+len(dst) > maxToUnicodeBytes {
 		return
 	}
 	tu.maps[codeOfBytes(src)] = dst
+	tu.bytes += len(dst)
 	if len(src) < tu.min {
 		tu.min = len(src)
 	}
@@ -144,12 +160,14 @@ func (tu *toUnicodeCMap) add(src []byte, dst string) {
 
 func (tu *toUnicodeCMap) addRange(lo, hi []byte, dst string) {
 	l, h := codeOfBytes(lo), codeOfBytes(hi)
-	if h < l || h-l > 65535 {
+	if len(dst) > maxToUnicodeDstChars || h < l || h-l > 65535 {
 		tu.add(lo, dst)
 		return
 	}
 	for c := l; ; c++ {
-		if len(tu.maps) >= maxToUnicodeMappings {
+		// The byte budget is checked before the per-code allocation: each
+		// mapped code stores its own copy of the shifted destination.
+		if len(tu.maps) >= maxToUnicodeMappings || tu.bytes > maxToUnicodeBytes {
 			return
 		}
 		tu.add(codeBytes(c, len(lo)), shiftUnicode(dst, int(c-l)))
@@ -170,7 +188,7 @@ func (tu *toUnicodeCMap) addRangeArray(lo, hi []byte, dsts []string) {
 		return
 	}
 	for c := l; ; c++ {
-		if len(tu.maps) >= maxToUnicodeMappings {
+		if len(tu.maps) >= maxToUnicodeMappings || tu.bytes > maxToUnicodeBytes {
 			return
 		}
 		idx := int(c - l)
@@ -201,6 +219,9 @@ func codeBytes(c uint32, n int) []byte {
 }
 
 // shiftUnicode adds delta code points to a UTF-16BE destination string.
+// The result keeps the UTF-16BE hex representation of the input: consumers
+// decode mapped values through decodeToUnicodeString, so returning a
+// decoded rune string here would garble every shifted range entry.
 func shiftUnicode(dst string, delta int) string {
 	if delta == 0 {
 		return dst
@@ -212,7 +233,17 @@ func shiftUnicode(dst string, delta int) string {
 	for i := range units {
 		units[i] = uint16(int(units[i]) + delta)
 	}
-	return unitsToString(units)
+	return unitsToHex(units)
+}
+
+// unitsToHex encodes UTF-16 code units as an uppercase UTF-16BE hex string.
+func unitsToHex(units []uint16) string {
+	b := make([]byte, len(units)*2)
+	for i, u := range units {
+		b[2*i] = byte(u >> 8)
+		b[2*i+1] = byte(u)
+	}
+	return strings.ToUpper(hex.EncodeToString(b))
 }
 
 func utf16Units(s string) []uint16 {

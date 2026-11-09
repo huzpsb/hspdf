@@ -449,6 +449,7 @@ type pdfFunction struct {
 	fns            []*pdfFunction
 	bounds         []float64
 	prog           []psNode // type 4 program parsed into a node tree
+	nTokens        int      // type 4 token count (per-evaluation cost proxy)
 }
 
 // maxFunctionDepth bounds the nesting of (stitching) functions and
@@ -556,6 +557,7 @@ func (d *device) parseFunctionDepth(o types.Object, depth int) (*pdfFunction, er
 				return nil, fmt.Errorf("calculator function: %d tokens exceeds limit %d", len(tokens), maxPSTokens)
 			}
 			fn.prog = parsePSNodes(tokens)
+			fn.nTokens = len(tokens)
 		}
 		return fn, nil
 	}

@@ -618,7 +618,22 @@ type cffInterp struct {
 	cur    []pt
 	open   bool
 	nStems int
+	// steps counts interpreted operations across ALL subr levels: subrs
+	// may call themselves repeatedly and multiply work exponentially with
+	// the recursion depth, so the depth limit alone does not bound the
+	// runtime of a corrupt font program.
+	steps int
+	// points counts the accumulated flattened outline points.
+	points int
 }
+
+// Budgets guarding the Type 2 charstring interpreter against corrupt font
+// programs. Real glyphs interpret a few thousand operations and flatten to a
+// few thousand points; the limits are orders of magnitude above that.
+const (
+	maxCFFInterpSteps  = 200_000
+	maxCFFInterpPoints = 50_000
+)
 
 func (in *cffInterp) moveTo(x, y float64) {
 	if in.open && len(in.cur) > 1 {
@@ -631,15 +646,21 @@ func (in *cffInterp) moveTo(x, y float64) {
 }
 
 func (in *cffInterp) lineTo(x, y float64) {
+	if in.points >= maxCFFInterpPoints {
+		return
+	}
 	in.cur = append(in.cur, pt{x, y})
+	in.points++
 }
 
 func (in *cffInterp) curveTo(c1, c2, end pt) {
-	if !in.open || len(in.cur) == 0 {
+	if !in.open || len(in.cur) == 0 || in.points >= maxCFFInterpPoints {
 		return
 	}
 	p0 := in.cur[len(in.cur)-1]
+	before := len(in.cur)
 	in.cur = flattenCubic(in.cur, p0, c1, c2, end, 20)
+	in.points += len(in.cur) - before
 }
 
 func (in *cffInterp) pop() float64 {
@@ -721,6 +742,11 @@ func (in *cffInterp) exec(code []byte, depth int) {
 	}
 	i := 0
 	for i < len(code) {
+		if in.steps++; in.steps > maxCFFInterpSteps {
+			// Budget exhausted (self-calling subrs multiply work
+			// exponentially): stop interpreting and keep what we have.
+			return
+		}
 		b0 := int(code[i])
 		switch {
 		case b0 == 28:

@@ -131,6 +131,9 @@ type device struct {
 	// imgBytes is the cumulative buffer size of the cached decoded images.
 	imgBytes int64
 
+	// glyphBytes is the cumulative size of the cached glyph outlines.
+	glyphBytes int64
+
 	// groupDepth/groupBytes bound concurrently active auxiliary canvases
 	// (transparency groups, soft masks) so nested groups cannot multiply
 	// page sized allocations. pageW/pageH is the page canvas size.
@@ -157,6 +160,13 @@ const (
 
 	// maxGroupDepth bounds the nesting of auxiliary canvases.
 	maxGroupDepth = 4
+
+	// maxContentArrayDepth bounds the nesting of content stream arrays and
+	// maxContentArrayElems bounds the tokens held in concurrently open
+	// arrays. Unbalanced bracket runs or element floods must not exhaust
+	// memory (mirrors the scanner limits of the text extractor).
+	maxContentArrayDepth = 64
+	maxContentArrayElems = 1 << 16
 )
 
 func newDevice(c context.Context, ctx *model.Context, cv *canvas, base mat) *device {
@@ -286,6 +296,7 @@ func (d *device) execContent(bb []byte) error {
 	lx := newLexer(bb)
 	var operands []token
 	var arrStack [][]token
+	arrElems := 0 // tokens held in concurrently open arrays
 	opCount := 0
 	for {
 		if opCount++; opCount%4096 == 0 {
@@ -304,14 +315,26 @@ func (d *device) execContent(bb []byte) error {
 		}
 		switch t.kind {
 		case tokArrOpen:
-			arrStack = append(arrStack, nil)
+			if len(arrStack) < maxContentArrayDepth {
+				arrStack = append(arrStack, nil)
+			}
+			// Beyond the depth limit the '[' is dropped: the remaining
+			// tokens accumulate in the current array subject to the
+			// element cap, keeping memory bounded in corrupt content.
 		case tokArrClose:
 			if n := len(arrStack); n > 0 {
 				arr := arrStack[n-1]
 				arrStack = arrStack[:n-1]
+				arrElems -= len(arr)
+				if arrElems < 0 {
+					arrElems = 0
+				}
 				tok := token{kind: tokArr, arr: arr}
 				if n := len(arrStack); n > 0 {
-					arrStack[n-1] = append(arrStack[n-1], tok)
+					if arrElems < maxContentArrayElems {
+						arrStack[n-1] = append(arrStack[n-1], tok)
+						arrElems++
+					}
 				} else {
 					operands = append(operands, tok)
 				}
@@ -321,6 +344,7 @@ func (d *device) execContent(bb []byte) error {
 				// Operator inside an array: corrupt content, bail out of the
 				// array.
 				arrStack = nil
+				arrElems = 0
 			}
 			if err := d.applyOperator(t.op, operands); err != nil {
 				return err
@@ -337,7 +361,10 @@ func (d *device) execContent(bb []byte) error {
 		default:
 			tok := t
 			if n := len(arrStack); n > 0 {
-				arrStack[n-1] = append(arrStack[n-1], tok)
+				if arrElems < maxContentArrayElems {
+					arrStack[n-1] = append(arrStack[n-1], tok)
+					arrElems++
+				}
 			} else if len(operands) < 1024 {
 				operands = append(operands, tok)
 			}

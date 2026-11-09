@@ -397,6 +397,11 @@ const (
 	joinBevel
 )
 
+// maxDashSegments bounds the dash segments generated for one dashPath call.
+// Denormal dash lengths or extreme path dimensions must not stall the
+// renderer; on overflow the path is stroked undashed instead.
+const maxDashSegments = 1 << 20
+
 // dashPath splits flattened subpaths into dash segments.
 func dashPath(sps []subPath, dash []float64, phase float64) []subPath {
 	if len(dash) == 0 {
@@ -405,18 +410,27 @@ func dashPath(sps []subPath, dash []float64, phase float64) []subPath {
 	var out []subPath
 	total := 0.0
 	for _, d := range dash {
-		if d < 0 {
+		if d < 0 || math.IsNaN(d) || math.IsInf(d, 0) {
 			return sps
 		}
 		total += d
 	}
-	if total == 0 {
+	if total == 0 || math.IsNaN(total) || math.IsInf(total, 0) {
+		// NaN: no sane pattern. Inf: a single infinite dash equals a solid
+		// stroke, which stroking without dashing already produces.
 		return sps
 	}
-	for phase < 0 {
+	if math.IsNaN(phase) {
+		phase = 0
+	}
+	// Normalize the phase in O(1). The previous loop
+	// (for phase < 0 { phase += total }) never terminated for a negative
+	// phase combined with a denormal pattern total: adding total below the
+	// phase's ULP leaves the value bit-identical.
+	phase = math.Mod(phase, total)
+	if phase < 0 {
 		phase += total
 	}
-	phase = math.Mod(phase, total)
 	idx := 0
 	// Advance to starting pattern position.
 	rem := dash[idx] - phase
@@ -428,6 +442,7 @@ func dashPath(sps []subPath, dash []float64, phase float64) []subPath {
 		}
 		cur = nil
 	}
+	segments := 0
 	for i := range sps {
 		pts := sps[i].pts
 		for j := 0; j < len(pts)-1; j++ {
@@ -439,6 +454,11 @@ func dashPath(sps []subPath, dash []float64, phase float64) []subPath {
 			ux, uy := (q.x-p.x)/l, (q.y-p.y)/l
 			pos := 0.0
 			for pos < l {
+				if segments++; segments > maxDashSegments {
+					// Pathological pattern (e.g. all denormal lengths) or
+					// path length: give up dashing, stroke solid instead.
+					return sps
+				}
 				step := math.Min(rem, l-pos)
 				nx, ny := p.x+ux*(pos+step), p.y+uy*(pos+step)
 				if on {

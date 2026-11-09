@@ -293,6 +293,20 @@ func parseCmapSubtable(b []byte, format int) (cmapSubtable, bool) {
 	return cmapSubtable{}, false
 }
 
+// maxTTFCompositePoints bounds the flattened points accumulated while
+// resolving one (possibly deeply nested) composite glyph. Chained composite
+// references multiply their children's points, so the resolved outline size
+// needs its own cap in addition to the recursion depth limit.
+const maxTTFCompositePoints = 500_000
+
+// ttfOutlineBudget guards the resolution of one top level glyph outline.
+// memo caches per-gid results so repeated component references stay linear;
+// points caps the accumulated outline size of multiplicative composites.
+type ttfOutlineBudget struct {
+	memo   map[int][]subPath
+	points int
+}
+
 // ttfGlyphOutline returns the outline of gid in font units, y axis down.
 func ttfGlyphOutline(tf *ttfFont, gid int, depth int) (sps []subPath) {
 	// A corrupt font program must degrade to an empty glyph, not take down
@@ -302,6 +316,21 @@ func ttfGlyphOutline(tf *ttfFont, gid int, depth int) (sps []subPath) {
 			sps = nil
 		}
 	}()
+	bud := &ttfOutlineBudget{memo: map[int][]subPath{}}
+	return ttfGlyphOutlineBudgeted(tf, gid, depth, bud)
+}
+
+// ttfGlyphOutlineBudgeted resolves gid through the shared per-outline budget.
+func ttfGlyphOutlineBudgeted(tf *ttfFont, gid int, depth int, bud *ttfOutlineBudget) []subPath {
+	if v, ok := bud.memo[gid]; ok {
+		return v
+	}
+	sps := ttfGlyphOutlineUncached(tf, gid, depth, bud)
+	bud.memo[gid] = sps
+	return sps
+}
+
+func ttfGlyphOutlineUncached(tf *ttfFont, gid int, depth int, bud *ttfOutlineBudget) []subPath {
 	start, end, ok := tf.glyphRange(gid)
 	if !ok || depth > 8 {
 		return nil
@@ -370,7 +399,7 @@ func ttfGlyphOutline(tf *ttfFont, gid int, depth int) (sps []subPath) {
 			dd = float64(int16(binary.BigEndian.Uint16(g[i+6:]))) / 16384
 			i += 8
 		}
-		sub := ttfGlyphOutline(tf, idx, depth+1)
+		sub := ttfGlyphOutlineBudgeted(tf, idx, depth+1, bud)
 		// Points are stored y-flipped (y axis down): adjust the component
 		// transform accordingly (X' = aX - cY + dx, Y' = -bX + dY - dy).
 		for _, sp := range sub {
@@ -383,6 +412,12 @@ func ttfGlyphOutline(tf *ttfFont, gid int, depth int) (sps []subPath) {
 				nsp.close()
 				out = append(out, nsp)
 			}
+			bud.points += len(np)
+		}
+		if bud.points > maxTTFCompositePoints {
+			// Chained composites multiply their children's points: return
+			// the partially resolved outline instead of exhausting memory.
+			return out
 		}
 		if flags&0x0020 == 0 { // MORE_COMPONENTS
 			break
