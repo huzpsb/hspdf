@@ -20,7 +20,7 @@ import (
 //go:embed ppocr.bin
 var modelBin []byte
 
-const modelMagic = "pdfcpu2_ppocr"
+const modelMagic = "hspdf___ppocr"
 
 // kernel types (must match the converter that emits ppocr.bin).
 const (

@@ -163,7 +163,7 @@ e.g. "pos:bl, off: 20 5"   "rot:45"                    "op:0.5, scale:0.5 abs, r
 
 	usageLongStamp = `Process stamping for selected pages.
 
-      pages ... Please refer to "pdfcpu selectedpages"
+      pages ... Please refer to "hspdf selectedpages"
         upw ... user password
         opw ... owner password
        mode ... text, image, PDF
@@ -190,7 +190,7 @@ Pipeline examples:
 ` + usageStampMode + usageWMDescription
 	usageLongWatermark = `Process watermarking for selected pages.
 
-      pages ... Please refer to "pdfcpu selectedpages"
+      pages ... Please refer to "hspdf selectedpages"
        mode ... text, image, PDF
      string ... display string for text based watermarks
        file ... image or PDF file
@@ -214,7 +214,7 @@ Pipeline examples:
 
 ` + usageWatermarkMode + usageWMDescription
 	usageLongAnnots = `Manage annotations.
-      pages ... Please refer to "pdfcpu selectedpages"
+      pages ... Please refer to "hspdf selectedpages"
      inFile ... input PDF file, use - to read from stdin
     outFile ... output PDF file, use - to write to stdout
       objNr ... obj# from "pdfcpu annotations list"

@@ -49,7 +49,7 @@ Pipeline example:
 
 	usageLongInfo = `Print info about a PDF file.
 
-   pages ... Please refer to "pdfcpu selectedpages"
+   pages ... Please refer to "hspdf selectedpages"
    fonts ... include font info
     json ... output JSON
   inFile ... a list of PDF input files, use - to read from stdin
@@ -149,7 +149,7 @@ Pipeline example:
 
 	usageLongTrim = `Generate a trimmed version of inFile for selected pages.
 
-     pages ... Please refer to "pdfcpu selectedpages"
+     pages ... Please refer to "hspdf selectedpages"
     inFile ... input PDF file, use - to read from stdin
    outFile ... output PDF file, use - to write to stdout
 
@@ -161,7 +161,7 @@ Pipeline example:
 
 	usageLongCollect = `Create custom sequence of selected pages.
 
-        pages ... Please refer to "pdfcpu selectedpages"
+        pages ... Please refer to "hspdf selectedpages"
        inFile ... input PDF file, use - to read from stdin
       outFile ... output PDF file, use - to write to stdout
 

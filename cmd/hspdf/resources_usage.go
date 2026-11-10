@@ -38,7 +38,7 @@ description ... dimensions, formsize, position, offset, scale factor, boxes
    formsize:        eg. A4, Letter, Legal...
                     Append 'L' to enforce landscape mode. (eg. A3L)
                     Append 'P' to enforce portrait mode. (eg. TabloidP)
-                    Please refer to "pdfcpu paper" for a comprehensive list of defined paper sizes.
+                    Please refer to "hspdf paper" for a comprehensive list of defined paper sizes.
                     "papersize" is also accepted.
   
    position:        one of 'full' or the anchors:
@@ -81,7 +81,7 @@ Create single page PDF cheat sheets in current dir.`
 
 	usageLongImages = `Manage images.
 
-     pages ... Please refer to "pdfcpu selectedpages"
+     pages ... Please refer to "hspdf selectedpages"
     inFile ... input PDF file, use - to read from stdin
  imageFile ... image file
    outFile ... output PDF file, use - to write to stdout for update

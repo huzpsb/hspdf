@@ -19,7 +19,7 @@ package main
 const (
 	usageLongRender = `Render selected pages into image files.
 
-         pages ... Please refer to "pdfcpu selectedpages"
+         pages ... Please refer to "hspdf selectedpages"
         inFile ... input PDF file, use - to read from stdin
         outDir ... output directory for one image file per page
 
@@ -47,7 +47,7 @@ Pipeline example:
 
 	usageLongSolidify = `Replace the content of selected pages with its rendered image.
 
-         pages ... Please refer to "pdfcpu selectedpages"
+         pages ... Please refer to "hspdf selectedpages"
         inFile ... input PDF file, use - to read from stdin
        outFile ... output PDF file, use - to write to stdout
                    (default: inFile, which requires --force for existing files)

@@ -21,7 +21,7 @@ const (
 This reduces the number of pages and therefore the required print time.
 If the input is one imageFile a single page n-up PDF gets generated.
 
-      pages ... inFile only, please refer to "pdfcpu selectedpages"
+      pages ... inFile only, please refer to "hspdf selectedpages"
 description ... dimensions, formsize, orientation
     outFile ... output PDF file, use - to write to stdout
           n ... the n-Up value (see below for details)
@@ -49,7 +49,7 @@ description ... dimensions, formsize, orientation
                      Append 'L' to enforce landscape mode. (eg. A3L)
                      Append 'P' to enforce portrait mode. (eg. TabloidP)
                      Only one of dimensions or formsize is allowed.
-                     Please refer to "pdfcpu paper" for a comprehensive list of defined paper sizes.
+                     Please refer to "hspdf paper" for a comprehensive list of defined paper sizes.
                      "papersize" is also accepted.
 
     orientation:     one of rd ... right down (=default)
@@ -93,7 +93,7 @@ Pipeline example:
 
 	usageLongBooklet = `Arrange a sequence of pages onto larger sheets of paper for a small book or zine.
 
-      pages       ... for inFile only, please refer to "pdfcpu selectedpages"
+      pages       ... for inFile only, please refer to "hspdf selectedpages"
       description ... dimensions, formsize, border, margin
       outFile     ... output PDF file, use - to write to stdout
       n           ... booklet style (2, 4, 6, 8)
@@ -166,7 +166,7 @@ The last signature may be shorter, e.g. for a booklet of 120 pages with signatur
                      Append 'L' to enforce landscape mode. (eg. A3L)
                      Append 'P' to enforce portrait mode. (eg. TabloidP)
                      Only one of dimensions or formsize is allowed.
-                     Please refer to "pdfcpu paper" for a comprehensive list of defined paper sizes.
+                     Please refer to "hspdf paper" for a comprehensive list of defined paper sizes.
                      "papersize" is also accepted.
    btype:            The method for arranging pages into a booklet. (booklet, bookletadvanced, perfectbound)
    binding:          The edge of the paper which has the binding. (long, short)
@@ -212,7 +212,7 @@ For a PDF inputfile each output page represents a grid of input pages.
 For image inputfiles each output page shows all images laid out onto grids of given paper size.
 This command produces poster like PDF pages convenient for page and image browsing.
 
-      pages ... Please refer to "pdfcpu selectedpages"
+      pages ... Please refer to "hspdf selectedpages"
 description ... dimensions, formsize, orientation, enforce
     outFile ... output PDF file, use - to write to stdout
           m ... grid lines
@@ -232,7 +232,7 @@ description ... dimensions, formsize, orientation, enforce
                   Append 'L' to enforce landscape mode. (eg. A3L)
                   Append 'P' to enforce portrait mode. (eg. TabloidP)
                   Only one of dimensions or formsize is allowed.
-                  Please refer to "pdfcpu paper" for a comprehensive list of defined paper sizes.
+                  Please refer to "hspdf paper" for a comprehensive list of defined paper sizes.
                   "papersize" is also accepted.
 
     orientation:  one of rd ... right down (=default)
@@ -272,7 +272,7 @@ Pipeline example:
 
 	usageLongResize = `Resize existing pages.
 
-      pages ... please refer to "pdfcpu selectedpages"
+      pages ... please refer to "hspdf selectedpages"
 description ... scalefactor, dimensions, formsize, enforce, rotate, border, bgcolor
      inFile ... input PDF file, use - to read from stdin
     outFile ... output PDF file, use - to write to stdout
@@ -286,7 +286,7 @@ description ... scalefactor, dimensions, formsize, enforce, rotate, border, bgco
       formsize:     Resize page to form/paper size eg. A4, Letter, Legal...
                         Append 'L' to enforce landscape mode. (eg. A3L)
                         Append 'P' to enforce portrait mode. (eg. A4P, TabloidP)
-                        Please refer to "pdfcpu paper" for a comprehensive list of defined paper sizes.
+                        Please refer to "hspdf paper" for a comprehensive list of defined paper sizes.
                         "papersize" is also accepted.
 
       dimensions:   Resize page to custom dimensions.
@@ -336,7 +336,7 @@ Pipeline example:
 `
 	usageLongPoster = `Create a poster using paper size.
 
-         pages ... Please refer to "pdfcpu selectedpages"
+         pages ... Please refer to "hspdf selectedpages"
    description ... formsize(=papersize), dimensions, scalefactor, margin, bgcolor, border
         inFile ... input PDF file, use - to read from stdin
         outDir ... output directory
@@ -351,7 +351,7 @@ Pipeline example:
       formsize:     Posterize using tiles with form/paper size eg. A4, Letter, Legal...
                         Append 'L' to enforce landscape mode. (eg. A3L)
                         Append 'P' to enforce portrait mode. (eg. A4P, TabloidP)
-                        Please refer to "pdfcpu paper" for a comprehensive list of defined paper sizes.
+                        Please refer to "hspdf paper" for a comprehensive list of defined paper sizes.
                         "papersize" is also accepted.
 
       dimensions:   Posterize using tiles with custom dimensions.
@@ -384,7 +384,7 @@ Pipeline example:
    See also the related commands: ndown, cut`
 	usageLongNDown = `Cut selected page into n pages symmetrically.
 
-         pages ... Please refer to "pdfcpu selectedpages"
+         pages ... Please refer to "hspdf selectedpages"
    description ... margin, bgcolor, border
              n ... the n-Down value (see below for details)
         inFile ... input PDF file, use - to read from stdin
@@ -432,7 +432,7 @@ Pipeline example:
 
 	usageLongCut = `Custom cut pages horizontally or vertically.
 
-         pages ... Please refer to "pdfcpu selectedpages"
+         pages ... Please refer to "hspdf selectedpages"
    description ... horizontal, vertical, margin, bgcolor, border
         inFile ... input PDF file, use - to read from stdin
         outDir ... output directory
@@ -480,7 +480,7 @@ Pipeline example:
 
 	usageLongZoom = `Zoom in/out of selected pages either by magnification factor or corresponding margin.
 
-      pages ... Please refer to "pdfcpu selectedpages"
+      pages ... Please refer to "hspdf selectedpages"
 description ... factor, hmargin, vmargin, border, bgcolor
      inFile ... input PDF file, use - to read from stdin
     outFile ... output PDF file, use - to write to stdout
@@ -529,7 +529,7 @@ Pipeline example:
 
 	usageLongPages = `Manage pages.
 
-      pages ... Please refer to "pdfcpu selectedpages"
+      pages ... Please refer to "hspdf selectedpages"
        mode ... before, after (default: before)
 description ... dimensions, formsize
      inFile ... input PDF file, use - to read from stdin
@@ -546,7 +546,7 @@ description ... dimensions, formsize
   formsize:        eg. A4, Letter, Legal...
                    Append 'L' to enforce landscape mode. (eg. A3L)
                    Append 'P' to enforce portrait mode. (eg. TabloidP)
-                   Please refer to "pdfcpu paper" for a comprehensive list of defined paper sizes.
+                   Please refer to "hspdf paper" for a comprehensive list of defined paper sizes.
                    "papersize" is also accepted.
 
    All configuration string parameters support completion.
@@ -576,7 +576,7 @@ Pipeline examples:
 
 	usageLongRotate = `Rotate selected pages by a multiple of 90 degrees.
 
-      pages ... Please refer to "pdfcpu selectedpages"
+      pages ... Please refer to "hspdf selectedpages"
      inFile ... input PDF file, use - to read from stdin
    rotation ... a multiple of 90 degrees for clockwise rotation
     outFile ... output PDF file, use - to write to stdout
@@ -589,7 +589,7 @@ Pipeline example:
 
 	usageLongCrop = `Set crop box for selected pages.
 
-        pages ... Please refer to "pdfcpu selectedpages"
+        pages ... Please refer to "hspdf selectedpages"
   description ... crop box definition abs. or rel. to media box
        inFile ... input PDF file, use - to read from stdin
       outFile ... output PDF file, use - to write to stdout
@@ -607,7 +607,7 @@ Pipeline example:
 	usageLongBoxes = `Manage page boundaries.
 
      boxTypes ... comma separated list of box types: m(edia), c(rop), t(rim), b(leed), a(rt)
-        pages ... Please refer to "pdfcpu selectedpages"
+        pages ... Please refer to "hspdf selectedpages"
   description ... box definitions abs. or rel. to parent box
        inFile ... input PDF file, use - to read from stdin
       outFile ... output PDF file, use - to write to stdout
